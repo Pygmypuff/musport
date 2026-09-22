@@ -54,8 +54,8 @@ def main():
                 # Each person's cropped frame is handed off here so gesture
                 # detection can run per-person once it's wired up.
                 # ----------------------------------------------------------
-                pipeline.process(person["id"], person_crop)
-
+                poses = pipeline.process(person["id"], person_crop)
+                
                 window_name = person_window_name(person["id"])
                 cv2.imshow(window_name, person_crop)
                 current_windows.add(window_name)
