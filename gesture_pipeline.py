@@ -2,7 +2,7 @@
 Per-person gesture pipeline — this is where MediaPipe plugs in.
 
 """
-
+import pose_detector
 
 class GesturePipeline:
     def process(self, person_id: int, person_crop):
