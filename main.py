@@ -2,8 +2,8 @@
 Entry point for the gesture-music prototype.
 
 YOLO detects people in the webcam feed; each person's cropped bounding
-box is shown in its own window with the pose GesturePipeline detected
-for them drawn on top.
+box is shown in its own window with the hand gestures GesturePipeline
+detected for them drawn on top.
 
 Run:
     python main.py
@@ -14,14 +14,13 @@ Press 'q' to quit.
 import cv2
 
 from gesture_pipeline import GesturePipeline
-from pose_detector import BOTH_HANDS_UP, is_both_hands_up
 from yolo_detector import YoloPersonDetector
 
 MODEL_PATH = "yolo26n-pose.pt"
 MAIN_WINDOW = "Gesture Music Prototype"
 
-NO_LANDMARKS = "no landmarks"
-NO_POSE = "no pose"
+NO_HANDS = "no hands"
+UNKNOWN = "Unknown"
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 
@@ -30,21 +29,19 @@ def person_window_name(person_id: int) -> str:
     return f"Person {person_id}"
 
 
-def pose_label(result) -> str:
-    """Name the pose in a PoseLandmarkerResult from GesturePipeline."""
-    if not result.pose_landmarks:
-        return NO_LANDMARKS
+def gesture_label(gestures) -> str:
+    """Name the gestures GesturePipeline returned for one person."""
+    if not gestures:
+        return NO_HANDS
 
-    if is_both_hands_up(result.pose_landmarks[0]):
-        return BOTH_HANDS_UP
-
-    return NO_POSE
+    return ", ".join(gestures)
 
 
-def draw_pose_label(crop, label):
-    """Draw the pose name across the top of a person's crop."""
+def draw_gesture_label(crop, label):
+    """Draw the gesture name across the top of a person's crop."""
     width = crop.shape[1]
-    color = (0, 200, 0) if label == BOTH_HANDS_UP else (0, 165, 255)
+    recognized = label not in (NO_HANDS, UNKNOWN)
+    color = (0, 200, 0) if recognized else (0, 165, 255)
 
     # Person crops can be very narrow, so size the text to fit the width
     # rather than picking a fixed scale that would get clipped.
@@ -94,18 +91,21 @@ def main():
                 if person_crop.size == 0:
                     continue
 
-                result = pipeline.process(person["id"], person_crop)
-                label = pose_label(result)
+                # Copy before handing it over: the pipeline draws landmarks on
+                # the crop it's given, and person_crop is a view into `frame`,
+                # so those marks would bleed into the main annotated window.
+                display_crop = person_crop.copy()
+
+                gestures = pipeline.process(person["id"], display_crop)
+                label = gesture_label(gestures)
                 print(f"Person {person['id']}: {label}")
 
-                # Copy first: person_crop is a view into `frame`, so drawing
-                # on it would bleed into the main annotated window.
-                labelled_crop = draw_pose_label(person_crop.copy(), label)
+                draw_gesture_label(display_crop, label)
 
-                # Window name stays fixed per person — putting the pose in the
-                # name would open a new window every time the pose changed.
+                # Window name stays fixed per person — putting the gesture in
+                # the name would open a new window every time it changed.
                 window_name = person_window_name(person["id"])
-                cv2.imshow(window_name, labelled_crop)
+                cv2.imshow(window_name, display_crop)
                 current_windows.add(window_name)
 
             # Close windows for people no longer in frame.

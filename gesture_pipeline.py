@@ -4,28 +4,28 @@ Per-person gesture pipeline — this is where MediaPipe plugs in.
 """
 import os
 
+import cv2
 import mediapipe as mp
-from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
 
 class GesturePipeline:
     def __init__(self):
         self.model_path = os.path.join(
-            os.path.dirname(__file__), "Models", "pose_landmarker_full.task"
+            os.path.dirname(__file__), "Models", "hand_landmarker.task"
         )
-        self.BaseOptions = mp.tasks.BaseOptions
-        self.PoseLandmarker = mp.tasks.vision.PoseLandmarker
 
+        # IMAGE mode, not VIDEO: each person's crop is an independent image.
+        # A single VIDEO-mode landmarker carries tracking state between calls,
+        # so it would treat every person in the frame as one subject jumping
+        # around, and results would depend on detection order.
         options = vision.HandLandmarkerOptions(
-            base_options=base_options,
-            running_mode=vision.RunningMode.VIDEO,
+            base_options=mp.tasks.BaseOptions(model_asset_path=self.model_path),
+            running_mode=vision.RunningMode.IMAGE,
             num_hands=2
         )
 
         self.landmarker = vision.HandLandmarker.create_from_options(options)
-
-        self.timestamp_ms = 0
 
         # List of all connections of the hand 
         self.connections = [
@@ -92,12 +92,7 @@ class GesturePipeline:
             data=rgb
         )
 
-        self.timestamp_ms += 1
-
-        result = self.landmarker.detect_for_video(
-            mp_image,
-            self.timestamp_ms
-        )
+        result = self.landmarker.detect(mp_image)
 
         height, width, _ = person_crop.shape
 
