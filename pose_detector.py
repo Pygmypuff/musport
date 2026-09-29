@@ -1,8 +1,7 @@
 """
 MediaPipe Pose Landmarker wrapper for per-person pose recognition.
 
-Takes a cropped person frame from YOLO and returns the name of the pose
-being held, or None if no recognized pose is detected.
+Takes a cropped person frame and returns the poses being held.
 """
 
 import os
@@ -18,10 +17,12 @@ from mediapipe.tasks.python.vision import (
     RunningMode,
 )
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "pose_landmarker.task")
+MODEL_PATH = os.path.join(
+    os.path.dirname(__file__), "Models", "pose_landmarker_full.task"
+)
 MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
-    "pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
+    "pose_landmarker_full/float16/latest/pose_landmarker_full.task"
 )
 
 BOTH_HANDS_UP = "both_hands_up"
@@ -33,6 +34,7 @@ MIN_LANDMARK_PRESENCE = 0.5
 def ensure_model():
     if not os.path.exists(MODEL_PATH):
         print("Downloading pose landmark model...")
+        os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
         urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
 
 
@@ -66,7 +68,7 @@ class PoseDetector:
         self.landmarker = PoseLandmarker.create_from_options(options)
 
     def detect(self, person_id: int, person_crop):
-        """Return the name of the pose in `person_crop`, or None.
+        """Return a list of the poses held in `person_crop`.
 
         `person_crop` is a BGR numpy array (frame[y1:y2, x1:x2]).
         """
@@ -75,13 +77,15 @@ class PoseDetector:
 
         result = self.landmarker.detect(mp_image)
         if not result.pose_landmarks:
-            return None
+            return []
 
         landmarks = result.pose_landmarks[0]
-        if is_both_hands_up(landmarks):
-            return BOTH_HANDS_UP
 
-        return None
+        poses = []
+        if is_both_hands_up(landmarks):
+            poses.append(BOTH_HANDS_UP)
+
+        return poses
 
     def close(self):
         self.landmarker.close()

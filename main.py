@@ -23,7 +23,7 @@ from yolo_detector import YoloPersonDetector
 MODEL_PATH = "yolo26n-pose.pt"
 MAIN_WINDOW = "Gesture Music Prototype"
 
-NO_HANDS = "no hands"
+NOTHING_DETECTED = "nothing detected"
 UNKNOWN = "Unknown"
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
@@ -51,13 +51,16 @@ GRID_GAP = 10
 TILE_BORDER = (70, 70, 70)
 
 
-def gesture_label(gestures):
-    """Convert the GesturePipeline output into display text."""
+def gesture_label(movements):
+    """Convert the GesturePipeline output into display text.
 
-    if not gestures:
-        return NO_HANDS
+    `movements` is the poses and hand gestures for one person, combined.
+    """
 
-    return ", ".join(gestures)
+    if not movements:
+        return NOTHING_DETECTED
+
+    return ", ".join(movements)
 
 
 def resize_to_fit(image, width, height):
@@ -86,12 +89,35 @@ def resize_to_fit(image, width, height):
     )
 
 
-def create_person_tile(crop, person_id, gestures, tile_width, tile_height):
+def grid_cell_size(person_count, grid_width, grid_height):
+    """
+    Size of one grid cell for the given number of people.
+
+    Tiles are built at this size rather than a fixed one, so they are
+    never stretched or squashed when placed into the grid.
+    """
+
+    rows = max(1, int(np.ceil(person_count / GRID_COLUMNS)))
+
+    tile_width = (
+        grid_width
+        - GRID_GAP * (GRID_COLUMNS + 1)
+    ) // GRID_COLUMNS
+
+    tile_height = (
+        grid_height
+        - GRID_GAP * (rows + 1)
+    ) // rows
+
+    return tile_width, tile_height
+
+
+def create_person_tile(crop, person_id, movements, tile_width, tile_height):
     """
     Create one tile for the person grid.
 
     The tile contains:
-        - Gesture label at the top
+        - Pose / gesture label at the top
         - Cropped person image
         - Person ID
     """
@@ -103,13 +129,13 @@ def create_person_tile(crop, person_id, gestures, tile_width, tile_height):
         dtype=np.uint8
     )
 
-    label = gesture_label(gestures)
+    label = gesture_label(movements)
 
     # ----------------------------------------------------------
     # Gesture information
     # ----------------------------------------------------------
 
-    recognized = label not in (NO_HANDS, UNKNOWN)
+    recognized = label not in (NOTHING_DETECTED, UNKNOWN)
 
     if recognized:
         color = (0, 255, 0)
@@ -120,10 +146,11 @@ def create_person_tile(crop, person_id, gestures, tile_width, tile_height):
     # Resize crop to fit inside the tile.
     # ----------------------------------------------------------
 
-    # Leave room at the top for the gesture label
-    # and at the bottom for the person ID.
-    top_height = 48
-    bottom_height = 32
+    # Leave room at the top for the gesture label and at the bottom for
+    # the person ID. Both shrink with the tile so that a crowd, which
+    # makes every tile short, does not leave the crop with no room.
+    top_height = min(48, max(18, tile_height // 4))
+    bottom_height = min(32, max(12, tile_height // 6))
 
     image_area_height = (
         tile_height
@@ -166,14 +193,24 @@ def create_person_tile(crop, person_id, gestures, tile_width, tile_height):
         -1
     )
 
+    # Size the text to the tile: labels combining a pose with two hand
+    # gestures are far wider than a tile at a fixed scale, and would clip.
+    (unit_width, _), _ = cv2.getTextSize(label, FONT, 1.0, 1)
+    label_scale = min(
+        0.65,
+        (tile_width - 24) / unit_width,
+        0.65 * top_height / 48
+    )
+    label_thickness = 2 if label_scale >= 0.5 else 1
+
     cv2.putText(
         tile,
         label,
-        (12, 32),
+        (12, int(top_height * 0.68)),
         FONT,
-        0.65,
+        label_scale,
         color,
-        2,
+        label_thickness,
         cv2.LINE_AA
     )
 
@@ -259,15 +296,11 @@ def create_person_grid(person_tiles, grid_width, grid_height):
 
     rows = int(np.ceil(len(person_tiles) / GRID_COLUMNS))
 
-    tile_width = (
-        grid_width
-        - GRID_GAP * (GRID_COLUMNS + 1)
-    ) // GRID_COLUMNS
-
-    tile_height = (
+    tile_width, tile_height = grid_cell_size(
+        len(person_tiles),
+        grid_width,
         grid_height
-        - GRID_GAP * (rows + 1)
-    ) // rows
+    )
 
     # ----------------------------------------------------------
     # Place each tile.
@@ -328,11 +361,10 @@ def main():
 
             people = detector.detect(frame)
 
-            person_tiles = []
-
-            # ------------------------------------------------------
-            # Process every detected person.
-            # ------------------------------------------------------
+            # Copy because GesturePipeline draws MediaPipe landmarks
+            # directly onto the image it receives, and person_crop is a
+            # view into `frame`.
+            person_crops = []
 
             for person in people:
 
@@ -343,22 +375,38 @@ def main():
                 if person_crop.size == 0:
                     continue
 
-                # Copy because GesturePipeline draws MediaPipe
-                # landmarks directly onto the image it receives.
-                display_crop = person_crop.copy()
+                person_crops.append((person, person_crop.copy()))
+
+            # Tile size depends on how many people there are, so it has
+            # to be settled before any tile is built.
+            tile_width, tile_height = grid_cell_size(
+                len(person_crops),
+                GRID_WIDTH,
+                DISPLAY_HEIGHT
+            )
+
+            person_tiles = []
+
+            # ------------------------------------------------------
+            # Process every detected person.
+            # ------------------------------------------------------
+
+            for person, display_crop in person_crops:
 
                 # --------------------------------------------------
                 # MediaPipe hand detection + gesture classification
                 # --------------------------------------------------
 
-                gestures = pipeline.process(
+                poses, gestures = pipeline.process(
                     person["id"],
                     display_crop
                 )
 
+                movements = poses + gestures
+
                 print(
                     f"Person {person['id']}: "
-                    f"{gesture_label(gestures)}"
+                    f"{gesture_label(movements)}"
                 )
 
                 # --------------------------------------------------
@@ -369,9 +417,9 @@ def main():
                     create_person_tile(
                         display_crop,
                         person["id"],
-                        gestures,
-                        GRID_WIDTH // GRID_COLUMNS,
-                        300
+                        movements,
+                        tile_width,
+                        tile_height
                     )
                 )
 
