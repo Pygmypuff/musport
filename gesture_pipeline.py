@@ -1,4 +1,9 @@
-import cv2
+"""
+Per-person gesture pipeline — this is where MediaPipe plugs in.
+
+"""
+import os
+
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -6,12 +11,11 @@ from mediapipe.tasks.python import vision
 
 class GesturePipeline:
     def __init__(self):
-        # path to a file
-        model_path = "models/hand_landmarker.task"
-
-        base_options = python.BaseOptions(
-            model_asset_path=model_path
+        self.model_path = os.path.join(
+            os.path.dirname(__file__), "Models", "pose_landmarker_full.task"
         )
+        self.BaseOptions = mp.tasks.BaseOptions
+        self.PoseLandmarker = mp.tasks.vision.PoseLandmarker
 
         options = vision.HandLandmarkerOptions(
             base_options=base_options,
