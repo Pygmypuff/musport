@@ -30,24 +30,43 @@ python demo_sounds.py
 
 `demo_sounds.py` keys: `B` breeze, `1` birds, `2` rain, `3` wind, `4` water, `5` leaves, `C` cricket, `Q` quit. Hold continuous keys to keep them playing.
 
-## Layout
+## Project structure
+
+Each webcam frame flows through the same steps:
 
 ```
-main.py                 Webcam app (YOLO → movements → sounds)
-demo_sounds.py          Keyboard sound test
-gesture_pipeline.py     Combines pose + hand detectors
-pose_detector.py        Body pose → Movement IDs
-hand_detector.py        Hands → finger extension
-yolo_detector.py        Person bounding boxes
-movements/
-  mapping.py            Canonical movement ↔ sound map
-  parameters.py         Tunable detection thresholds
-  detectors.py          Landmark geometry rules
-audio/
-  sound_engine.py       Pygame mixer / fade / triggers
-assets/sounds/          Forest wav files
-Models/                 MediaPipe .task models
+webcam frame → find people → crop each person → find body/hand landmarks
+             → apply movement rules → play sounds → draw the window
 ```
+
+```
+main.py                 The webcam loop; ties everything below together
+ui.py                   Draws the window (webcam feed + grid of person tiles)
+demo_sounds.py          Keyboard sound test, no camera needed
+
+yolo_detector.py        Finds and tracks people (ID + bounding box)
+gesture_pipeline.py     Runs the pose and hand detectors on one person
+landmark_detector.py    Shared MediaPipe setup used by both detectors
+pose_detector.py        Body landmarks → movements
+hand_detector.py        Hand landmarks → finger extension
+
+movements/
+  mapping.py            Which movement plays which sound
+  detectors.py          The geometry rule for each movement
+  parameters.py         Thresholds those rules use
+audio/
+  sound_engine.py       Plays, loops and fades the sounds
+
+assets/sounds/          Forest wav files
+Models/                 MediaPipe models (downloaded if missing)
+yolo26n-pose.pt         YOLO person model
+```
+
+Where to make common changes:
+
+- **Change a sound or add a movement:** `movements/mapping.py`, plus a rule in `movements/detectors.py`.
+- **A movement triggers too often or too rarely:** `movements/parameters.py`.
+- **Change how the window looks:** `ui.py`.
 
 ## Tuning
 
