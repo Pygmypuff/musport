@@ -15,6 +15,8 @@ Run:
 Press 'q' to quit. For keyboard-only sound testing: python demo_sounds.py
 """
 
+from pathlib import Path
+
 import cv2
 import numpy as np
 
@@ -24,11 +26,10 @@ from movements.mapping import Movement, display_name
 from yolo_detector import YoloPersonDetector
 
 
-MODEL_PATH = "yolo26n-pose.pt"
+MODEL_PATH = str(Path(__file__).resolve().parent / "yolo26n-pose.pt")
 MAIN_WINDOW = "Musport Yoga"
 
 NOTHING_DETECTED = "nothing detected"
-UNKNOWN = "Unknown"
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 
@@ -135,9 +136,7 @@ def create_person_tile(crop, person_id, movements, tile_width, tile_height):
     # Gesture information
     # ----------------------------------------------------------
 
-    recognized = label not in (NOTHING_DETECTED, UNKNOWN)
-
-    if recognized:
+    if movements:
         color = (0, 255, 0)
     else:
         color = (0, 165, 255)

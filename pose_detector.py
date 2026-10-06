@@ -19,7 +19,7 @@ from mediapipe.tasks.python.vision import (
 )
 
 from movements.detectors import POSE_DETECTORS
-from movements.mapping import Movement, display_name
+from movements.mapping import Movement
 
 MODEL_PATH = os.path.join(
     os.path.dirname(__file__), "Models", "pose_landmarker_full.task"
@@ -84,6 +84,3 @@ class PoseDetector:
     def close(self):
         self.landmarker.close()
         self._prev_landmarks.clear()
-
-
-__all__ = ["PoseDetector", "Movement", "display_name"]
