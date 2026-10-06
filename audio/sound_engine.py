@@ -43,6 +43,16 @@ class ContinuousSound:
             self.channel.set_volume(self.current_volume)
 
 
+class OneShotSound:
+    def __init__(self, sounds: list[pygame.mixer.Sound], channel_number: int):
+        self.sounds = sounds
+        self.channel = pygame.mixer.Channel(channel_number)
+
+    def play(self):
+        """Play one of the variations, picked at random."""
+        self.channel.play(choice(self.sounds))
+
+
 class SoundEngine:
     """Map active Movement sets → mixer channels."""
 
@@ -54,23 +64,20 @@ class SoundEngine:
         pygame.mixer.set_num_channels(16)
 
         self._continuous: dict[Movement, ContinuousSound] = {}
-        self._oneshot_channels: dict[Movement, pygame.mixer.Channel] = {}
-        self._oneshot_files: dict[Movement, list[pygame.mixer.Sound]] = {}
+        self._oneshots: dict[Movement, OneShotSound] = {}
         self._prev_active: set[Movement] = set()
 
-        channel_num = 1
-        for movement, spec in MOVEMENT_SOUNDS.items():
-            files = [self._load(name) for name in spec.files]
+        # Channel 0 is the background bed; each movement gets its own after it.
+        for channel_num, (movement, spec) in enumerate(
+            MOVEMENT_SOUNDS.items(), start=1
+        ):
+            sounds = [self._load(name) for name in spec.files]
             if spec.playback == "continuous":
                 self._continuous[movement] = ContinuousSound(
-                    files[0], channel_num
+                    sounds[0], channel_num
                 )
             else:
-                self._oneshot_channels[movement] = pygame.mixer.Channel(
-                    channel_num
-                )
-                self._oneshot_files[movement] = files
-            channel_num += 1
+                self._oneshots[movement] = OneShotSound(sounds, channel_num)
 
         self._background_channel = pygame.mixer.Channel(0)
         if enable_background:
@@ -86,16 +93,18 @@ class SoundEngine:
         sound.set_volume(0.8)
         return sound
 
+    def _play_oneshot(self, movement: Movement):
+        oneshot = self._oneshots.get(movement)
+        if oneshot:
+            oneshot.play()
+
     def set_active(self, active: set[Movement], intensity: float = 0.8):
         """Update playback from the set of movements currently detected."""
         for movement, continuous in self._continuous.items():
             continuous.set_intensity(intensity if movement in active else 0.0)
 
-        newly_active = active - self._prev_active
-        for movement in newly_active:
-            files = self._oneshot_files.get(movement)
-            if files:
-                self._oneshot_channels[movement].play(choice(files))
+        for movement in active - self._prev_active:
+            self._play_oneshot(movement)
 
         self._prev_active = set(active)
 
@@ -103,11 +112,8 @@ class SoundEngine:
         """Manual / keyboard trigger for one movement."""
         if movement in self._continuous:
             self._continuous[movement].set_intensity(intensity)
-            return
-
-        files = self._oneshot_files.get(movement)
-        if files:
-            self._oneshot_channels[movement].play(choice(files))
+        else:
+            self._play_oneshot(movement)
 
     def update(self):
         for continuous in self._continuous.values():

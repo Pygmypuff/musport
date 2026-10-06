@@ -16,13 +16,8 @@ from movements.mapping import MOVEMENT_SOUNDS, Movement
 
 
 KEY_TO_MOVEMENT = {
-    pygame.K_b: Movement.SIDE_BEND,
-    pygame.K_1: Movement.NECK_TURN,
-    pygame.K_2: Movement.BEND_DOWN,
-    pygame.K_3: Movement.LEG_EXTENSION,
-    pygame.K_4: Movement.TORSO_TURN,
-    pygame.K_5: Movement.HEEL_RAISE,
-    pygame.K_c: Movement.FINGER_EXTENSION,
+    pygame.key.key_code(spec.keyboard): movement
+    for movement, spec in MOVEMENT_SOUNDS.items()
 }
 
 
