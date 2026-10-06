@@ -14,7 +14,9 @@ import mediapipe as mp
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python.vision import RunningMode
 
-MODELS_DIR = os.path.join(os.path.dirname(__file__), "Models")
+MODELS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Models"
+)
 
 
 def ensure_model(filename: str, url: str) -> str:

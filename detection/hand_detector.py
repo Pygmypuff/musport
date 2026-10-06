@@ -8,7 +8,7 @@ Draws the hand skeleton onto the crop and returns Movement values
 import cv2
 from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions
 
-from landmark_detector import LandmarkDetector
+from detection.landmark_detector import LandmarkDetector
 from movements.detectors import detect_finger_extension
 from movements.mapping import Movement
 

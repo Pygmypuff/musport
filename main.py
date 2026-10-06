@@ -17,9 +17,9 @@ import cv2
 
 import ui
 from audio.sound_engine import SoundEngine
-from gesture_pipeline import GesturePipeline
+from detection.gesture_pipeline import GesturePipeline
+from detection.yolo_detector import YoloPersonDetector
 from movements.mapping import Movement
-from yolo_detector import YoloPersonDetector
 
 
 MODEL_PATH = str(Path(__file__).resolve().parent / "yolo26n-pose.pt")

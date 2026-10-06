@@ -44,12 +44,12 @@ main.py                 The webcam loop; ties everything below together
 ui.py                   Draws the window (webcam feed + grid of person tiles)
 demo_sounds.py          Keyboard sound test, no camera needed
 
-yolo_detector.py        Finds and tracks people (ID + bounding box)
-gesture_pipeline.py     Runs the pose and hand detectors on one person
-landmark_detector.py    Shared MediaPipe setup used by both detectors
-pose_detector.py        Body landmarks → movements
-hand_detector.py        Hand landmarks → finger extension
-
+detection/
+  yolo_detector.py      Finds and tracks people (ID + bounding box)
+  gesture_pipeline.py   Runs the pose and hand detectors on one person
+  landmark_detector.py  Shared MediaPipe setup used by both detectors
+  pose_detector.py      Body landmarks → movements
+  hand_detector.py      Hand landmarks → finger extension
 movements/
   mapping.py            Which movement plays which sound
   detectors.py          The geometry rule for each movement

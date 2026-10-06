@@ -8,7 +8,7 @@ hand_detector.py.
 
 from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions
 
-from landmark_detector import LandmarkDetector
+from detection.landmark_detector import LandmarkDetector
 from movements.detectors import POSE_DETECTORS
 from movements.mapping import Movement
 

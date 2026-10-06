@@ -6,9 +6,9 @@ combined Movement list. Add new detectors in movements/detectors.py;
 main only needs to react to Movement IDs.
 """
 
-from hand_detector import HandDetector
+from detection.hand_detector import HandDetector
+from detection.pose_detector import PoseDetector
 from movements.mapping import Movement
-from pose_detector import PoseDetector
 
 
 class GesturePipeline:
