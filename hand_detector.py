@@ -5,18 +5,12 @@ Draws the hand skeleton onto the crop and returns Movement values
 (currently finger extension → cricket).
 """
 
-import os
-
 import cv2
-import mediapipe as mp
-from mediapipe.tasks.python import vision
+from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions
 
+from landmark_detector import LandmarkDetector
 from movements.detectors import detect_finger_extension
 from movements.mapping import Movement
-
-MODEL_PATH = os.path.join(
-    os.path.dirname(__file__), "Models", "hand_landmarker.task"
-)
 
 CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),
@@ -28,14 +22,15 @@ CONNECTIONS = [
 ]
 
 
-class HandDetector:
+class HandDetector(LandmarkDetector):
+    MODEL_FILE = "hand_landmarker.task"
+    MODEL_URL = (
+        "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
+        "hand_landmarker/float16/latest/hand_landmarker.task"
+    )
+
     def __init__(self):
-        options = vision.HandLandmarkerOptions(
-            base_options=mp.tasks.BaseOptions(model_asset_path=MODEL_PATH),
-            running_mode=vision.RunningMode.IMAGE,
-            num_hands=2,
-        )
-        self.landmarker = vision.HandLandmarker.create_from_options(options)
+        super().__init__(HandLandmarker, HandLandmarkerOptions, num_hands=2)
 
     def draw_hand(self, person_crop, hand_landmarks):
         height, width, _ = person_crop.shape
@@ -52,22 +47,11 @@ class HandDetector:
 
     def detect(self, person_id: int, person_crop) -> list[Movement]:
         """Return hand-based yoga movements found in `person_crop`."""
-        rgb = cv2.cvtColor(person_crop, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        result = self.landmarker.detect(mp_image)
+        hands = self.find_landmarks(person_crop).hand_landmarks
 
-        movements: list[Movement] = []
-        saw_finger_extension = False
-
-        for hand_landmarks in result.hand_landmarks:
+        for hand_landmarks in hands:
             self.draw_hand(person_crop, hand_landmarks)
-            if detect_finger_extension(hand_landmarks):
-                saw_finger_extension = True
 
-        if saw_finger_extension:
-            movements.append(Movement.FINGER_EXTENSION)
-
-        return movements
-
-    def close(self):
-        self.landmarker.close()
+        if any(detect_finger_extension(hand) for hand in hands):
+            return [Movement.FINGER_EXTENSION]
+        return []

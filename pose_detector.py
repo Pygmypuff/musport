@@ -6,55 +6,28 @@ from body pose (side bend, bend down, etc.). Hand-only moves live in
 hand_detector.py.
 """
 
-import os
-import urllib.request
+from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions
 
-import cv2
-import mediapipe as mp
-from mediapipe.tasks.python import BaseOptions
-from mediapipe.tasks.python.vision import (
-    PoseLandmarker,
-    PoseLandmarkerOptions,
-    RunningMode,
-)
-
+from landmark_detector import LandmarkDetector
 from movements.detectors import POSE_DETECTORS
 from movements.mapping import Movement
 
-MODEL_PATH = os.path.join(
-    os.path.dirname(__file__), "Models", "pose_landmarker_full.task"
-)
-MODEL_URL = (
-    "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
-    "pose_landmarker_full/float16/latest/pose_landmarker_full.task"
-)
 
+class PoseDetector(LandmarkDetector):
+    MODEL_FILE = "pose_landmarker_full.task"
+    MODEL_URL = (
+        "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
+        "pose_landmarker_full/float16/latest/pose_landmarker_full.task"
+    )
 
-def ensure_model():
-    if not os.path.exists(MODEL_PATH):
-        print("Downloading pose landmark model...")
-        os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-
-
-class PoseDetector:
     def __init__(self):
-        ensure_model()
-        options = PoseLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=MODEL_PATH),
-            running_mode=RunningMode.IMAGE,
-            num_poses=1,
-        )
-        self.landmarker = PoseLandmarker.create_from_options(options)
+        super().__init__(PoseLandmarker, PoseLandmarkerOptions, num_poses=1)
         # Previous landmarks per person for temporal cues (neck turn, heel raise).
         self._prev_landmarks: dict[int, object] = {}
 
     def detect(self, person_id: int, person_crop) -> list[Movement]:
         """Return yoga movements held in `person_crop`."""
-        rgb_crop = cv2.cvtColor(person_crop, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_crop)
-
-        result = self.landmarker.detect(mp_image)
+        result = self.find_landmarks(person_crop)
         if not result.pose_landmarks:
             self._prev_landmarks.pop(person_id, None)
             return []
@@ -82,5 +55,5 @@ class PoseDetector:
         return found
 
     def close(self):
-        self.landmarker.close()
+        super().close()
         self._prev_landmarks.clear()
