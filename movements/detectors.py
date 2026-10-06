@@ -12,11 +12,24 @@ import math
 from collections.abc import Callable, Sequence
 
 from mediapipe.tasks.python.vision import PoseLandmark
+from mediapipe.tasks.python.vision.hand_landmarker import HandLandmark
 
 from movements import parameters as P
 from movements.mapping import Movement
 
 LM = PoseLandmark
+HAND = HandLandmark
+
+# (tip, pip) joints of the four non-thumb fingers.
+FINGER_JOINTS = (
+    (HAND.INDEX_FINGER_TIP, HAND.INDEX_FINGER_PIP),
+    (HAND.MIDDLE_FINGER_TIP, HAND.MIDDLE_FINGER_PIP),
+    (HAND.RING_FINGER_TIP, HAND.RING_FINGER_PIP),
+    (HAND.PINKY_TIP, HAND.PINKY_PIP),
+)
+
+
+# --- Landmark access -------------------------------------------------
 
 
 def _vis(lm) -> float:
@@ -36,6 +49,16 @@ def _pt(landmarks, index) -> tuple[float, float, float]:
     return float(lm.x), float(lm.y), float(lm.z)
 
 
+def _points(landmarks, *indices):
+    """(x, y, z) for each landmark, or None unless all of them are present."""
+    if not _present(landmarks, *indices):
+        return None
+    return [_pt(landmarks, i) for i in indices]
+
+
+# --- Geometry (x/y image plane unless noted) -------------------------
+
+
 def _mid(a: tuple[float, float, float], b: tuple[float, float, float]):
     return ((a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5, (a[2] + b[2]) * 0.5)
 
@@ -44,51 +67,50 @@ def _dist2(a, b) -> float:
     return math.hypot(a[0] - b[0], a[1] - b[1])
 
 
-def _angle_deg(a, b, c) -> float:
-    """Angle ABC in degrees (at point b)."""
-    bax, bay = a[0] - b[0], a[1] - b[1]
-    bcx, bcy = c[0] - b[0], c[1] - b[1]
-    na = math.hypot(bax, bay)
-    nc = math.hypot(bcx, bcy)
-    if na < 1e-6 or nc < 1e-6:
-        return 0.0
-    cos_a = max(-1.0, min(1.0, (bax * bcx + bay * bcy) / (na * nc)))
-    return math.degrees(math.acos(cos_a))
+def _width(a, b) -> float:
+    """Distance between two points, floored so it is safe to divide by."""
+    return max(_dist2(a, b), 1e-3)
 
 
-def _line_angle_deg(a, b, c, d) -> float:
-    """Absolute angle between vectors ab and cd, in degrees [0, 90]."""
-    ux, uy = b[0] - a[0], b[1] - a[1]
-    vx, vy = d[0] - c[0], d[1] - c[1]
-    nu = math.hypot(ux, uy)
-    nv = math.hypot(vx, vy)
+def _vec(a, b) -> tuple[float, float]:
+    """Vector from a to b."""
+    return b[0] - a[0], b[1] - a[1]
+
+
+def _angle_deg(u, v, as_lines: bool = False) -> float:
+    """Angle between vectors u and v in degrees [0, 180].
+
+    With as_lines=True direction is ignored, giving the angle between
+    the two lines instead: 0 = parallel, 90 = perpendicular.
+    """
+    nu = math.hypot(u[0], u[1])
+    nv = math.hypot(v[0], v[1])
     if nu < 1e-6 or nv < 1e-6:
         return 0.0
-    cos_a = max(-1.0, min(1.0, abs(ux * vx + uy * vy) / (nu * nv)))
-    # Angle between lines: 0 = parallel, 90 = perpendicular.
-    return math.degrees(math.acos(cos_a))
+    cos_a = (u[0] * v[0] + u[1] * v[1]) / (nu * nv)
+    if as_lines:
+        cos_a = abs(cos_a)
+    return math.degrees(math.acos(max(-1.0, min(1.0, cos_a))))
+
+
+# --- Pose detectors --------------------------------------------------
 
 
 def detect_side_bend(landmarks, prev_landmarks=None) -> bool:
     """Breeze — one hand raised with a side lean."""
-    needed = (
+    points = _points(
+        landmarks,
         LM.NOSE,
         LM.LEFT_SHOULDER,
         LM.RIGHT_SHOULDER,
         LM.LEFT_WRIST,
         LM.RIGHT_WRIST,
     )
-    if not _present(landmarks, *needed):
+    if points is None:
         return False
+    nose, l_sh, r_sh, l_wr, r_wr = points
 
-    nose = _pt(landmarks, LM.NOSE)
-    l_sh = _pt(landmarks, LM.LEFT_SHOULDER)
-    r_sh = _pt(landmarks, LM.RIGHT_SHOULDER)
-    l_wr = _pt(landmarks, LM.LEFT_WRIST)
-    r_wr = _pt(landmarks, LM.RIGHT_WRIST)
-
-    shoulder_w = max(_dist2(l_sh, r_sh), 1e-3)
-    tilt = abs(l_sh[1] - r_sh[1]) / shoulder_w
+    tilt = abs(l_sh[1] - r_sh[1]) / _width(l_sh, r_sh)
 
     left_up = l_wr[1] < nose[1] - P.SIDE_BEND_WRIST_ABOVE_NOSE
     right_up = r_wr[1] < nose[1] - P.SIDE_BEND_WRIST_ABOVE_NOSE
@@ -106,23 +128,21 @@ def detect_side_bend(landmarks, prev_landmarks=None) -> bool:
 
 def detect_neck_turn(landmarks, prev_landmarks=None) -> bool:
     """Birds — head / neck turned left or right."""
-    needed = (LM.NOSE, LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER)
-    if not _present(landmarks, *needed):
+    points = _points(landmarks, LM.NOSE, LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER)
+    if points is None:
         return False
+    nose, l_sh, r_sh = points
 
-    nose = _pt(landmarks, LM.NOSE)
-    l_sh = _pt(landmarks, LM.LEFT_SHOULDER)
-    r_sh = _pt(landmarks, LM.RIGHT_SHOULDER)
     mid = _mid(l_sh, r_sh)
-    shoulder_w = max(_dist2(l_sh, r_sh), 1e-3)
+    shoulder_w = _width(l_sh, r_sh)
 
     nose_offset = abs(nose[0] - mid[0]) / shoulder_w
     if nose_offset >= P.NECK_TURN_NOSE_OFFSET:
         return True
 
-    if _present(landmarks, LM.LEFT_EAR, LM.RIGHT_EAR):
-        l_ear = _pt(landmarks, LM.LEFT_EAR)
-        r_ear = _pt(landmarks, LM.RIGHT_EAR)
+    ears = _points(landmarks, LM.LEFT_EAR, LM.RIGHT_EAR)
+    if ears is not None:
+        l_ear, r_ear = ears
         if abs(l_ear[2] - r_ear[2]) >= P.NECK_TURN_EAR_Z:
             return True
 
@@ -136,19 +156,20 @@ def detect_neck_turn(landmarks, prev_landmarks=None) -> bool:
 
 def detect_bend_down(landmarks, prev_landmarks=None) -> bool:
     """Rain — forward fold / bend down (seated or standing)."""
-    needed = (
+    points = _points(
+        landmarks,
         LM.NOSE,
         LM.LEFT_SHOULDER,
         LM.RIGHT_SHOULDER,
         LM.LEFT_HIP,
         LM.RIGHT_HIP,
     )
-    if not _present(landmarks, *needed):
+    if points is None:
         return False
+    nose, l_sh, r_sh, l_hip, r_hip = points
 
-    nose = _pt(landmarks, LM.NOSE)
-    sh = _mid(_pt(landmarks, LM.LEFT_SHOULDER), _pt(landmarks, LM.RIGHT_SHOULDER))
-    hip = _mid(_pt(landmarks, LM.LEFT_HIP), _pt(landmarks, LM.RIGHT_HIP))
+    sh = _mid(l_sh, r_sh)
+    hip = _mid(l_hip, r_hip)
 
     torso = hip[1] - sh[1]
     if torso < 0.05:
@@ -160,9 +181,7 @@ def detect_bend_down(landmarks, prev_landmarks=None) -> bool:
         return True
 
     # Forward lean toward camera shortens apparent torso vs hip width.
-    hip_w = max(
-        _dist2(_pt(landmarks, LM.LEFT_HIP), _pt(landmarks, LM.RIGHT_HIP)), 1e-3
-    )
+    hip_w = _width(l_hip, r_hip)
     if torso / hip_w < P.BEND_DOWN_TORSO_COMPRESS and nose[1] > sh[1] + 0.05:
         return True
 
@@ -170,13 +189,13 @@ def detect_bend_down(landmarks, prev_landmarks=None) -> bool:
 
 
 def _leg_extended(landmarks, hip_i, knee_i, ankle_i) -> bool:
-    if not _present(landmarks, hip_i, knee_i, ankle_i):
+    points = _points(landmarks, hip_i, knee_i, ankle_i)
+    if points is None:
         return False
-    hip = _pt(landmarks, hip_i)
-    knee = _pt(landmarks, knee_i)
-    ankle = _pt(landmarks, ankle_i)
+    hip, knee, ankle = points
 
-    angle = _angle_deg(hip, knee, ankle)
+    # Knee angle (hip–knee–ankle); 180° is straight.
+    angle = _angle_deg(_vec(knee, hip), _vec(knee, ankle))
     if angle < P.LEG_EXT_MIN_KNEE_ANGLE:
         return False
 
@@ -201,22 +220,19 @@ def detect_leg_extension(landmarks, prev_landmarks=None) -> bool:
 
 def detect_torso_turn(landmarks, prev_landmarks=None) -> bool:
     """Water — seated torso rotation."""
-    needed = (
+    points = _points(
+        landmarks,
         LM.LEFT_SHOULDER,
         LM.RIGHT_SHOULDER,
         LM.LEFT_HIP,
         LM.RIGHT_HIP,
     )
-    if not _present(landmarks, *needed):
+    if points is None:
         return False
-
-    l_sh = _pt(landmarks, LM.LEFT_SHOULDER)
-    r_sh = _pt(landmarks, LM.RIGHT_SHOULDER)
-    l_hip = _pt(landmarks, LM.LEFT_HIP)
-    r_hip = _pt(landmarks, LM.RIGHT_HIP)
+    l_sh, r_sh, l_hip, r_hip = points
 
     # Twist: shoulder line rotated vs hip line.
-    twist = _line_angle_deg(l_sh, r_sh, l_hip, r_hip)
+    twist = _angle_deg(_vec(l_sh, r_sh), _vec(l_hip, r_hip), as_lines=True)
     if twist >= P.TORSO_TURN_LINE_ANGLE:
         return True
 
@@ -230,9 +246,9 @@ def detect_heel_raise(landmarks, prev_landmarks=None) -> bool:
     """Leaves — seated heel raise (heels up, toes down)."""
 
     def side(heel_i, toe_i, ankle_i) -> bool:
-        if _present(landmarks, heel_i, toe_i):
-            heel = _pt(landmarks, heel_i)
-            toe = _pt(landmarks, toe_i)
+        foot = _points(landmarks, heel_i, toe_i)
+        if foot is not None:
+            heel, toe = foot
             if toe[1] - heel[1] >= P.HEEL_RAISE_HEEL_ABOVE_TOES:
                 return True
 
@@ -253,28 +269,22 @@ def detect_heel_raise(landmarks, prev_landmarks=None) -> bool:
     return left or right
 
 
+# --- Hand detectors --------------------------------------------------
+
+
 def detect_finger_extension(hand_landmarks: Sequence) -> bool:
     """Cricket — open hand / fingers extended."""
-    wrist = hand_landmarks[0]
+    wrist = _pt(hand_landmarks, HAND.WRIST)
 
     def extended(tip: int, pip: int) -> bool:
-        tip_d = math.hypot(
-            hand_landmarks[tip].x - wrist.x, hand_landmarks[tip].y - wrist.y
-        )
-        pip_d = math.hypot(
-            hand_landmarks[pip].x - wrist.x, hand_landmarks[pip].y - wrist.y
-        )
+        tip_d = _dist2(_pt(hand_landmarks, tip), wrist)
+        pip_d = _dist2(_pt(hand_landmarks, pip), wrist)
         if pip_d < 1e-6:
             return False
         return tip_d / pip_d >= P.FINGER_EXT_TIP_RATIO
 
-    fingers = (
-        extended(8, 6),
-        extended(12, 10),
-        extended(16, 14),
-        extended(20, 18),
-    )
-    return sum(fingers) >= P.FINGER_EXT_MIN_COUNT
+    extended_count = sum(extended(tip, pip) for tip, pip in FINGER_JOINTS)
+    return extended_count >= P.FINGER_EXT_MIN_COUNT
 
 
 # Pose-landmark detectors run by PoseDetector, in priority order.
