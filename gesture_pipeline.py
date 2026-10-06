@@ -1,12 +1,13 @@
 """
 Per-person movement handler.
 
-Runs every movement detector over one person's cropped frame and hands
-the combined results back to the caller. Adding a new kind of movement
-means adding a detector here, not changing main.
+Runs pose + hand detectors on one cropped person frame and returns the
+combined Movement list. Add new detectors in movements/detectors.py;
+main only needs to react to Movement IDs.
 """
 
 from hand_detector import HandDetector
+from movements.mapping import Movement
 from pose_detector import PoseDetector
 
 
@@ -15,18 +16,22 @@ class GesturePipeline:
         self.pose_detector = PoseDetector()
         self.hand_detector = HandDetector()
 
-    def process(self, person_id: int, person_crop):
-        """Return (poses, gestures) detected for one person.
+    def process(self, person_id: int, person_crop) -> list[Movement]:
+        """Return all yoga movements detected for one person.
 
-        `person_crop` is a BGR numpy array (frame[y1:y2, x1:x2]). Both
-        lists are empty when nothing is recognized.
+        Pose runs first: the hand detector draws its skeleton onto the
+        crop, and the pose model should see the unmarked image.
         """
-        # Pose runs first: the hand detector draws its skeleton onto the crop,
-        # and the pose model should see the unmarked image.
         poses = self.pose_detector.detect(person_id, person_crop)
-        gestures = self.hand_detector.detect(person_id, person_crop)
-
-        return poses, gestures
+        hands = self.hand_detector.detect(person_id, person_crop)
+        # Preserve order, drop duplicates.
+        seen: set[Movement] = set()
+        combined: list[Movement] = []
+        for movement in poses + hands:
+            if movement not in seen:
+                seen.add(movement)
+                combined.append(movement)
+        return combined
 
     def close(self):
         self.pose_detector.close()

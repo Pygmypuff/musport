@@ -1,27 +1,31 @@
 """
-Entry point for the gesture-music prototype.
+Musport — nature sounds for senior-living yoga movements.
+
+Webcam → YOLO people → pose/hand movements → forest sound bed.
 
 The display contains:
     - Full webcam feed on the left
     - A grid of cropped person views on the right
     - Each cropped view shows MediaPipe hand landmarks
-      and the detected gesture
+      and the detected yoga movement / sound
 
 Run:
     python main.py
 
-Press 'q' to quit.
+Press 'q' to quit. For keyboard-only sound testing: python demo_sounds.py
 """
 
 import cv2
 import numpy as np
 
+from audio.sound_engine import SoundEngine
 from gesture_pipeline import GesturePipeline
+from movements.mapping import Movement, display_name
 from yolo_detector import YoloPersonDetector
 
 
 MODEL_PATH = "yolo26n-pose.pt"
-MAIN_WINDOW = "Gesture Music Prototype"
+MAIN_WINDOW = "Musport Yoga"
 
 NOTHING_DETECTED = "nothing detected"
 UNKNOWN = "Unknown"
@@ -51,16 +55,12 @@ GRID_GAP = 10
 TILE_BORDER = (70, 70, 70)
 
 
-def gesture_label(movements):
-    """Convert the GesturePipeline output into display text.
-
-    `movements` is the poses and hand gestures for one person, combined.
-    """
-
+def gesture_label(movements: list[Movement]) -> str:
+    """Convert detected Movement IDs into display text."""
     if not movements:
         return NOTHING_DETECTED
 
-    return ", ".join(movements)
+    return ", ".join(display_name(m) for m in movements)
 
 
 def resize_to_fit(image, width, height):
@@ -337,81 +337,46 @@ def create_person_grid(person_tiles, grid_width, grid_height):
 
 
 def main():
-
     detector = YoloPersonDetector(MODEL_PATH)
     pipeline = GesturePipeline()
+    sounds = SoundEngine(enable_background=True)
 
     cap = cv2.VideoCapture(0)
-
     if not cap.isOpened():
         raise RuntimeError("Could not open webcam.")
 
     try:
-
         while True:
-
             ret, frame = cap.read()
-
             if not ret:
                 break
 
-            # ------------------------------------------------------
-            # YOLO detects people in the full webcam frame.
-            # ------------------------------------------------------
-
             people = detector.detect(frame)
 
-            # Copy because GesturePipeline draws MediaPipe landmarks
-            # directly onto the image it receives, and person_crop is a
-            # view into `frame`.
+            # Copy because HandDetector draws landmarks onto the crop,
+            # and person_crop is a view into `frame`.
             person_crops = []
-
             for person in people:
-
                 x1, y1, x2, y2 = person["bbox"]
-
                 person_crop = frame[y1:y2, x1:x2]
-
                 if person_crop.size == 0:
                     continue
-
                 person_crops.append((person, person_crop.copy()))
 
-            # Tile size depends on how many people there are, so it has
-            # to be settled before any tile is built.
             tile_width, tile_height = grid_cell_size(
-                len(person_crops),
-                GRID_WIDTH,
-                DISPLAY_HEIGHT
+                len(person_crops), GRID_WIDTH, DISPLAY_HEIGHT
             )
 
             person_tiles = []
-
-            # ------------------------------------------------------
-            # Process every detected person.
-            # ------------------------------------------------------
+            active_movements: set[Movement] = set()
 
             for person, display_crop in person_crops:
-
-                # --------------------------------------------------
-                # MediaPipe hand detection + gesture classification
-                # --------------------------------------------------
-
-                poses, gestures = pipeline.process(
-                    person["id"],
-                    display_crop
-                )
-
-                movements = poses + gestures
+                movements = pipeline.process(person["id"], display_crop)
+                active_movements.update(movements)
 
                 print(
-                    f"Person {person['id']}: "
-                    f"{gesture_label(movements)}"
+                    f"Person {person['id']}: {gesture_label(movements)}"
                 )
-
-                # --------------------------------------------------
-                # Create a tile for this person.
-                # --------------------------------------------------
 
                 person_tiles.append(
                     create_person_tile(
@@ -419,79 +384,39 @@ def main():
                         person["id"],
                         movements,
                         tile_width,
-                        tile_height
+                        tile_height,
                     )
                 )
 
-            # ------------------------------------------------------
-            # Annotate the full webcam frame with YOLO boxes.
-            # ------------------------------------------------------
+            sounds.set_active(active_movements)
+            sounds.update()
 
             annotated_frame = detector.annotate(frame)
-
-            # ------------------------------------------------------
-            # Create the right-side person grid.
-            # ------------------------------------------------------
-
-            grid_height = DISPLAY_HEIGHT
-
             person_grid = create_person_grid(
-                person_tiles,
-                GRID_WIDTH,
-                grid_height
+                person_tiles, GRID_WIDTH, DISPLAY_HEIGHT
             )
-
-            # ------------------------------------------------------
-            # Resize full webcam image.
-            # ------------------------------------------------------
 
             main_feed = resize_to_fit(
-                annotated_frame,
-                MAIN_WIDTH,
-                DISPLAY_HEIGHT
+                annotated_frame, MAIN_WIDTH, DISPLAY_HEIGHT
             )
-
-            # Create the left side.
             left_panel = np.full(
-                (DISPLAY_HEIGHT, MAIN_WIDTH, 3),
-                BACKGROUND,
-                dtype=np.uint8
+                (DISPLAY_HEIGHT, MAIN_WIDTH, 3), BACKGROUND, dtype=np.uint8
             )
-
             if main_feed is not None:
-
                 feed_height, feed_width = main_feed.shape[:2]
-
                 x = (MAIN_WIDTH - feed_width) // 2
                 y = (DISPLAY_HEIGHT - feed_height) // 2
+                left_panel[y : y + feed_height, x : x + feed_width] = main_feed
 
-                left_panel[
-                    y:y + feed_height,
-                    x:x + feed_width
-                ] = main_feed
-
-            # ------------------------------------------------------
-            # Combine left + right into ONE window.
-            # ------------------------------------------------------
-
-            combined = np.hstack(
-                (left_panel, person_grid)
-            )
-
-            cv2.imshow(
-                MAIN_WINDOW,
-                combined
-            )
-
-            # ------------------------------------------------------
-            # Quit with Q.
-            # ------------------------------------------------------
+            combined = np.hstack((left_panel, person_grid))
+            cv2.imshow(MAIN_WINDOW, combined)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
     finally:
-
+        sounds.close()
+        pipeline.close()
         cap.release()
         cv2.destroyAllWindows()
 
