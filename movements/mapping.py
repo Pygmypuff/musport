@@ -23,6 +23,7 @@ class Movement(str, Enum):
     TORSO_TURN = "torso_turn"
     HEEL_RAISE = "heel_raise"  # seated heel raise
     FINGER_EXTENSION = "finger_extension"
+    FIST = "fist"
 
 
 @dataclass(frozen=True)
@@ -100,6 +101,12 @@ MOVEMENT_SOUNDS: dict[Movement, SoundSpec] = {
     ),
     Movement.FINGER_EXTENSION: SoundSpec(
         label="Finger extension",
+        sound=CRICKET,
+        playback="oneshot",
+        keyboard="c",
+    ),
+    Movement.FIST: SoundSpec(
+        label="Fist",
         sound=CRICKET,
         playback="oneshot",
         keyboard="c",

@@ -41,7 +41,7 @@ class PoseDetector(LandmarkDetector):
                 found.append(movement)
 
         # Side bend tilts the shoulders/head — don't also fire twist/neck.
-        if Movement.SIDE_BEND in found:
+        if Movement.SIDE_BEND in found: 
             found = [
                 m
                 for m in found

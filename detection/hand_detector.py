@@ -54,4 +54,6 @@ class HandDetector(LandmarkDetector):
 
         if any(detect_finger_extension(hand) for hand in hands):
             return [Movement.FINGER_EXTENSION]
+        else:
+            return [Movement.FIST]
         return []
