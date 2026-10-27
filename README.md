@@ -75,6 +75,7 @@ detection/
 movements/
   mapping.py            The sounds, and which movement plays which
   sequences.py          Movement sequences and the sound each plays
+  enabled.py            On/off switch for each movement and sequence
   detectors.py          The geometry rule for each movement
   parameters.py         Thresholds those rules use, plus timing
 audio/
@@ -87,6 +88,7 @@ yolo26n-pose.pt         YOLO person model
 
 Where to make common changes:
 
+- **Test only some movements or sequences:** set them to `True`/`False` in `movements/enabled.py`. `main.py` prints what's on at startup.
 - **Change a sound or add a movement:** `movements/mapping.py`, plus a rule in `movements/detectors.py`.
 - **Add or change a sequence:** `movements/sequences.py`.
 - **A movement triggers too often or too rarely:** `movements/parameters.py`.
