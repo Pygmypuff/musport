@@ -12,7 +12,7 @@ and the longest window must fit in HISTORY_SECONDS in parameters.py.
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from movements.mapping import LEAVES, Movement, Sound
+from movements.mapping import LEAVES, CRICKET, Movement, Sound
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,12 @@ SEQUENCES: list[MovementSequence] = [
         steps=(Movement.SIDE_BEND, Movement.BEND_DOWN),
         within_seconds=5.0,
         sound=LEAVES,
+    ),
+    MovementSequence(
+        name="Fist → Finger Extension",
+        steps=(Movement.FIST, Movement.FINGER_EXTENSION),
+        within_seconds=5.0,
+        sound=CRICKET,
     ),
 ]
 
