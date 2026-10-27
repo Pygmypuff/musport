@@ -58,3 +58,15 @@ HEEL_RAISE_ANKLE_LIFT = 0.015
 FINGER_EXT_TIP_RATIO = 1.08
 # How many of index/middle/ring/pinky must be extended (of 4).
 FINGER_EXT_MIN_COUNT = 4
+
+# --- Timing (seconds) -----------------------------------------------
+# A movement must be detected for this long before it counts as started.
+MOVEMENT_START_SECONDS = 0.2
+# ...and missing for this long before it counts as ended. Short gaps
+# (a dropped frame, a brief occlusion) shorter than this are ignored.
+MOVEMENT_END_SECONDS = 0.4
+# Forget a person who has been out of frame this long.
+PERSON_TIMEOUT_SECONDS = 2.0
+# How far back each person's movement history goes. Must be at least
+# as long as the longest sequence window in movements/sequences.py.
+HISTORY_SECONDS = 30.0

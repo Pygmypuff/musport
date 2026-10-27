@@ -94,6 +94,12 @@ def paste_centered(canvas, image, left, top, width, height):
     canvas[y:y + image_height, x:x + image_width] = resized
 
 
+def text_scale(text, max_width, max_scale):
+    """Largest font scale, up to max_scale, at which `text` fits max_width."""
+    (unit_width, _), _ = cv2.getTextSize(text, FONT, 1.0, 1)
+    return min(max_scale, max_width / unit_width)
+
+
 def grid_layout(person_count):
     """
     Rows in the grid and the size of one cell for the given number of
@@ -110,14 +116,16 @@ def grid_layout(person_count):
     return rows, tile_width, tile_height
 
 
-def create_person_tile(crop, person_id, movements, tile_width, tile_height):
+def create_person_tile(
+    crop, person_id, movements, sequence, tile_width, tile_height
+):
     """
     Create one tile for the person grid.
 
     The tile contains:
         - Pose / gesture label at the top
         - Cropped person image
-        - Person ID
+        - Person ID, plus the name of a just-completed sequence
     """
     tile = blank(tile_width, tile_height)
 
@@ -140,10 +148,8 @@ def create_person_tile(crop, person_id, movements, tile_width, tile_height):
 
     # Size the text to the tile: labels combining a pose with two hand
     # gestures are far wider than a tile at a fixed scale, and would clip.
-    (unit_width, _), _ = cv2.getTextSize(label, FONT, 1.0, 1)
     label_scale = min(
-        0.65,
-        (tile_width - 24) / unit_width,
+        text_scale(label, tile_width - 24, 0.65),
         0.65 * top_height / 48,
     )
     label_thickness = 2 if label_scale >= 0.5 else 1
@@ -159,13 +165,17 @@ def create_person_tile(crop, person_id, movements, tile_width, tile_height):
         cv2.LINE_AA,
     )
 
+    footer = f"Person {person_id}"
+    if sequence:
+        footer += f"  -  {sequence}"
+
     cv2.putText(
         tile,
-        f"Person {person_id}",
+        footer,
         (10, tile_height - 10),
         FONT,
-        0.45,
-        MUTED_TEXT,
+        text_scale(footer, tile_width - 20, 0.45),
+        RECOGNIZED if sequence else MUTED_TEXT,
         1,
         cv2.LINE_AA,
     )
@@ -179,7 +189,7 @@ def create_person_tile(crop, person_id, movements, tile_width, tile_height):
 
 def create_person_grid(person_views):
     """
-    Build one tile per (person_id, crop, movements) and arrange them
+    Build one tile per (person_id, crop, movements, sequence) and arrange them
     into a grid.
 
     Example with 4 people:
@@ -202,7 +212,7 @@ def create_person_grid(person_views):
 
     _, tile_width, tile_height = grid_layout(len(person_views))
 
-    for i, (person_id, crop, movements) in enumerate(person_views):
+    for i, (person_id, crop, movements, sequence) in enumerate(person_views):
         row = i // GRID_COLUMNS
         col = i % GRID_COLUMNS
 
@@ -210,7 +220,7 @@ def create_person_grid(person_views):
         y = GRID_GAP + row * (tile_height + GRID_GAP)
 
         grid[y:y + tile_height, x:x + tile_width] = create_person_tile(
-            crop, person_id, movements, tile_width, tile_height
+            crop, person_id, movements, sequence, tile_width, tile_height
         )
 
     return grid
@@ -219,7 +229,8 @@ def create_person_grid(person_views):
 def render(annotated_frame, person_views):
     """
     Build the full window image: webcam feed on the left, person grid
-    on the right. `person_views` is a list of (person_id, crop, movements).
+    on the right. `person_views` is a list of
+    (person_id, crop, movements, sequence name or None).
     """
     left_panel = blank(MAIN_WIDTH, DISPLAY_HEIGHT)
     paste_centered(

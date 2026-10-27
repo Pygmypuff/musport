@@ -54,6 +54,9 @@ class PoseDetector(LandmarkDetector):
         self._prev_landmarks[person_id] = landmarks
         return found
 
+    def forget(self, person_id: int):
+        self._prev_landmarks.pop(person_id, None)
+
     def close(self):
         super().close()
         self._prev_landmarks.clear()

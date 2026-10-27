@@ -33,6 +33,10 @@ class GesturePipeline:
                 combined.append(movement)
         return combined
 
+    def forget(self, person_id: int):
+        """Drop any per-person state kept for someone who has left."""
+        self.pose_detector.forget(person_id)
+
     def close(self):
         self.pose_detector.close()
         self.hand_detector.close()

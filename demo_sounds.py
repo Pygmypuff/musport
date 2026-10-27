@@ -15,10 +15,15 @@ from audio.sound_engine import SoundEngine
 from movements.mapping import MOVEMENT_SOUNDS, Movement
 
 
-KEY_TO_MOVEMENT = {
-    pygame.key.key_code(spec.keyboard): movement
-    for movement, spec in MOVEMENT_SOUNDS.items()
-}
+def key_map() -> dict[int, Movement]:
+    """Pygame key code → movement, from the keys in mapping.py.
+
+    Call after pygame.init(); key_code() needs it.
+    """
+    return {
+        pygame.key.key_code(spec.keyboard): movement
+        for movement, spec in MOVEMENT_SOUNDS.items()
+    }
 
 
 def main():
@@ -27,11 +32,12 @@ def main():
     pygame.display.set_caption("Musport — sound demo")
     clock = pygame.time.Clock()
     engine = SoundEngine(enable_background=True)
+    key_to_movement = key_map()
 
     print("Musport sound demo")
     print("Forest background is playing.")
     for movement, spec in MOVEMENT_SOUNDS.items():
-        print(f"  [{spec.keyboard}]  {spec.sound:8} ← {spec.label}")
+        print(f"  [{spec.keyboard}]  {spec.sound.name:8} ← {spec.label}")
     print("  [q]  quit")
 
     held_continuous: set[Movement] = set()
@@ -47,24 +53,24 @@ def main():
                         running = False
                         continue
 
-                    movement = KEY_TO_MOVEMENT.get(event.key)
+                    movement = key_to_movement.get(event.key)
                     if movement is None:
                         continue
 
                     spec = MOVEMENT_SOUNDS[movement]
-                    print(f"→ {spec.sound} ({spec.label})")
+                    print(f"→ {spec.sound.name} ({spec.label})")
                     if spec.playback == "continuous":
                         held_continuous.add(movement)
-                        engine.set_active(held_continuous)
                     else:
-                        engine.trigger(movement)
+                        engine.trigger(spec.sound)
 
                 elif event.type == pygame.KEYUP:
-                    movement = KEY_TO_MOVEMENT.get(event.key)
-                    if movement and movement in held_continuous:
-                        held_continuous.discard(movement)
-                        engine.set_active(held_continuous)
+                    movement = key_to_movement.get(event.key)
+                    held_continuous.discard(movement)
 
+            engine.set_held(
+                {MOVEMENT_SOUNDS[m].sound for m in held_continuous}
+            )
             engine.update()
             screen.fill((24, 36, 28))
             pygame.display.flip()

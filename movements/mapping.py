@@ -25,6 +25,29 @@ class Movement(str, Enum):
     FINGER_EXTENSION = "finger_extension"
 
 
+@dataclass(frozen=True)
+class Sound:
+    """A nature sound. One of `files` is picked at random each time it plays."""
+
+    name: str  # shown in the UI
+    files: tuple[str, ...]  # wav filenames under assets/sounds/
+
+
+BREEZE = Sound("Breeze", ("breeze.wav",))
+BIRDS = Sound("Birds", ("birds1.wav", "birds2.wav", "birds3.wav"))
+RAIN = Sound("Rain", ("long_rain.wav",))
+WIND = Sound("Wind", ("wind_blowing.wav",))
+WATER = Sound("Water", ("water_flowing.wav",))
+LEAVES = Sound("Leaves", ("stepping_on_leaves.wav",))
+CRICKET = Sound("Cricket", ("cricket.wav",))
+
+# Every sound the engine loads. Sounds used by movements/sequences.py
+# must be listed here too.
+ALL_SOUNDS = (BREEZE, BIRDS, RAIN, WIND, WATER, LEAVES, CRICKET)
+
+
+# "continuous": plays while the movement is being done, fades out after.
+# "oneshot":    plays once when the movement starts.
 Playback = Literal["oneshot", "continuous"]
 
 
@@ -33,8 +56,7 @@ class SoundSpec:
     """How a movement's sound should play."""
 
     label: str  # human-readable movement name
-    sound: str  # nature sound name shown in the UI
-    files: tuple[str, ...]  # wav filenames under assets/sounds/
+    sound: Sound
     playback: Playback
     keyboard: str  # key used in demo_sounds.py
 
@@ -42,50 +64,43 @@ class SoundSpec:
 MOVEMENT_SOUNDS: dict[Movement, SoundSpec] = {
     Movement.SIDE_BEND: SoundSpec(
         label="Side bend (one hand up)",
-        sound="Breeze",
-        files=("breeze.wav",),
+        sound=BREEZE,
         playback="continuous",
         keyboard="b",
     ),
     Movement.NECK_TURN: SoundSpec(
         label="Neck / head turn",
-        sound="Birds",
-        files=("birds1.wav", "birds2.wav", "birds3.wav"),
+        sound=BIRDS,
         playback="oneshot",
         keyboard="1",
     ),
     Movement.BEND_DOWN: SoundSpec(
         label="Bend down",
-        sound="Rain",
-        files=("long_rain.wav",),
+        sound=RAIN,
         playback="continuous",
         keyboard="2",
     ),
     Movement.LEG_EXTENSION: SoundSpec(
         label="Leg extension",
-        sound="Wind",
-        files=("wind_blowing.wav",),
+        sound=WIND,
         playback="continuous",
         keyboard="3",
     ),
     Movement.TORSO_TURN: SoundSpec(
         label="Torso turn",
-        sound="Water",
-        files=("water_flowing.wav",),
+        sound=WATER,
         playback="continuous",
         keyboard="4",
     ),
     Movement.HEEL_RAISE: SoundSpec(
         label="Seated heel raise",
-        sound="Leaves",
-        files=("stepping_on_leaves.wav",),
+        sound=LEAVES,
         playback="oneshot",
         keyboard="5",
     ),
     Movement.FINGER_EXTENSION: SoundSpec(
         label="Finger extension",
-        sound="Cricket",
-        files=("cricket.wav",),
+        sound=CRICKET,
         playback="oneshot",
         keyboard="c",
     ),
@@ -101,4 +116,4 @@ def sound_path(filename: str) -> Path:
 def display_name(movement: Movement) -> str:
     """Short UI label: 'Breeze — Side bend (one hand up)'."""
     spec = MOVEMENT_SOUNDS[movement]
-    return f"{spec.sound} — {spec.label}"
+    return f"{spec.sound.name} — {spec.label}"
