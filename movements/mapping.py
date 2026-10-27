@@ -71,7 +71,7 @@ MOVEMENT_SOUNDS: dict[Movement, SoundSpec] = {
     Movement.NECK_TURN: SoundSpec(
         label="Neck / head turn",
         sound=BIRDS,
-        playback="oneshot",
+        playback="continuous",
         keyboard="1",
     ),
     Movement.BEND_DOWN: SoundSpec(
