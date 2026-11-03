@@ -1,12 +1,13 @@
 """
 Turn movements and sequences on or off — handy for testing a few at a time.
 
-A disabled movement isn't detected at all: its rule doesn't run, it never
-shows on screen or plays a sound, and it can't count as a sequence step.
-If every pose movement is off the pose model is skipped, and if finger
-extension is off the hand model is skipped, so testing gets faster too.
+A disabled movement never shows on screen, never plays a sound, and can't
+count as a sequence step. This is enforced in detection/person_tracker.py.
+If every pose movement is off the pose model is skipped, and if both hand
+movements are off the hand model is skipped, so testing gets faster too.
 
-Anything missing from these dicts counts as enabled.
+Anything missing from these dicts counts as enabled; main.py warns about
+it at startup.
 """
 
 from movements.mapping import Movement
@@ -25,6 +26,7 @@ ENABLED_MOVEMENTS: dict[Movement, bool] = {
     Movement.TORSO_TURN: True,
     Movement.HEEL_RAISE: True,
     Movement.FINGER_EXTENSION: True,
+    Movement.FIST: True,
 }
 
 ENABLED_SEQUENCES: dict[MovementSequence, bool] = {
@@ -48,6 +50,14 @@ def summary() -> str:
     lines = [f"Movements on: {', '.join(on) or 'none'}"]
     if off:
         lines.append(f"Movements off: {', '.join(off)}")
+
+    unlisted = [m.value for m in Movement if m not in ENABLED_MOVEMENTS]
+    unlisted += [s.name for s in SEQUENCES if s not in ENABLED_SEQUENCES]
+    if unlisted:
+        lines.append(
+            f"Not listed in movements/enabled.py (treated as on): "
+            f"{', '.join(unlisted)}"
+        )
 
     for sequence in SEQUENCES:
         if not sequence_enabled(sequence):

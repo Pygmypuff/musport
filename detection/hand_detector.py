@@ -23,6 +23,9 @@ CONNECTIONS = [
 
 
 class HandDetector(LandmarkDetector):
+    # Every movement detect() can return.
+    MOVEMENTS = (Movement.FINGER_EXTENSION, Movement.FIST)
+
     MODEL_FILE = "hand_landmarker.task"
     MODEL_URL = (
         "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"

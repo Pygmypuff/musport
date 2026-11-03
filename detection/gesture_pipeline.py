@@ -8,6 +8,7 @@ main only needs to react to Movement IDs.
 
 from detection.hand_detector import HandDetector
 from detection.pose_detector import PoseDetector
+from movements.enabled import is_enabled
 from movements.mapping import Movement
 
 
@@ -22,8 +23,12 @@ class GesturePipeline:
         Pose runs first: the hand detector draws its skeleton onto the
         crop, and the pose model should see the unmarked image.
         """
-        poses = self.pose_detector.detect(person_id, person_crop)
-        hands = self.hand_detector.detect(person_id, person_crop)
+        # A model whose movements are all switched off isn't run at all.
+        poses, hands = [], []
+        if any(map(is_enabled, PoseDetector.MOVEMENTS)):
+            poses = self.pose_detector.detect(person_id, person_crop)
+        if any(map(is_enabled, HandDetector.MOVEMENTS)):
+            hands = self.hand_detector.detect(person_id, person_crop)
         # Preserve order, drop duplicates.
         seen: set[Movement] = set()
         combined: list[Movement] = []

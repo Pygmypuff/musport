@@ -19,6 +19,9 @@ from movements.mapping import Movement
 
 
 class PoseDetector(LandmarkDetector):
+    # Every movement detect() can return.
+    MOVEMENTS = tuple(movement for movement, _ in POSE_DETECTORS)
+
     MODEL_FILE = "pose_landmarker_full.task"
     MODEL_URL = (
         "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"

@@ -6,7 +6,9 @@ flickers. PersonTracker smooths that into start / end events for each
 person, keeps a short history of what they did, and reports when they
 complete a movement sequence (movements/sequences.py).
 
-Timing thresholds live in movements/parameters.py.
+Timing thresholds live in movements/parameters.py. Movements and
+sequences switched off in movements/enabled.py are dropped here, so they
+can't reach the sounds, the UI or any sequence.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from dataclasses import dataclass
 from typing import Literal, Union
 
 from movements import parameters as P
+from movements.enabled import is_enabled, sequence_enabled
 from movements.mapping import Movement
 from movements.sequences import SEQUENCES, MovementSequence, is_completed
 
@@ -94,7 +97,7 @@ class PersonState:
 
     def _completed_sequences(self, now: float) -> list[SequenceEvent]:
         events = []
-        for sequence in SEQUENCES:
+        for sequence in filter(sequence_enabled, SEQUENCES):
             after = self._sequence_fired.get(sequence, -math.inf)
             if is_completed(sequence, self.starts, after):
                 self._sequence_fired[sequence] = now
@@ -135,7 +138,8 @@ class PersonTracker:
             if person is None:
                 person = self.people[person_id] = PersonState(person_id, now)
             person.last_seen = now
-            events += person.update(set(movements), now)
+            switched_on = {m for m in movements if is_enabled(m)}
+            events += person.update(switched_on, now)
 
         for person_id, person in list(self.people.items()):
             if person_id in detections:

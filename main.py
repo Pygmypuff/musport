@@ -22,6 +22,7 @@ from audio.sound_engine import SoundEngine
 from detection.gesture_pipeline import GesturePipeline
 from detection.person_tracker import Event, PersonTracker, SequenceEvent
 from detection.yolo_detector import YoloPersonDetector
+from movements import enabled
 from movements.mapping import MOVEMENT_SOUNDS, Movement
 
 
@@ -67,6 +68,8 @@ def update_sounds(
 
 
 def main():
+    print(enabled.summary())
+
     detector = YoloPersonDetector(MODEL_PATH)
     pipeline = GesturePipeline()
     tracker = PersonTracker(on_person_removed=pipeline.forget)
