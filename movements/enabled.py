@@ -10,7 +10,12 @@ Anything missing from these dicts counts as enabled.
 """
 
 from movements.mapping import Movement
-from movements.sequences import SEQUENCES, SIDE_BEND_THEN_BEND_DOWN, MovementSequence
+from movements.sequences import (
+    FIST_OPEN_PALM_FIST,
+    SEQUENCES,
+    SIDE_BEND_THEN_BEND_DOWN,
+    MovementSequence,
+)
 
 ENABLED_MOVEMENTS: dict[Movement, bool] = {
     Movement.SIDE_BEND: True,
@@ -24,6 +29,7 @@ ENABLED_MOVEMENTS: dict[Movement, bool] = {
 
 ENABLED_SEQUENCES: dict[MovementSequence, bool] = {
     SIDE_BEND_THEN_BEND_DOWN: True,
+    FIST_OPEN_PALM_FIST: True,
 }
 
 

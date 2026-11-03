@@ -10,6 +10,8 @@ twice at once.
   that sound is already playing.
 """
 
+from __future__ import annotations
+
 import time
 from random import choice
 
@@ -31,6 +33,7 @@ class SoundChannel:
         self.channel = pygame.mixer.Channel(channel_number)
         self.held = False
         self.volume = 0.0
+        self.volume_scale = 1.0
         self._looping = False
 
     def trigger(self) -> bool:
@@ -53,7 +56,7 @@ class SoundChannel:
         if not self._looping:
             return
 
-        target = HELD_VOLUME if self.held else 0.0
+        target = HELD_VOLUME * self.volume_scale if self.held else 0.0
         step = HELD_VOLUME * dt / FADE_SECONDS
         if self.volume < target:
             self.volume = min(target, self.volume + step)
@@ -97,10 +100,14 @@ class SoundEngine:
         sound.set_volume(0.8)
         return sound
 
-    def set_held(self, sounds: set[Sound]):
-        """Sounds that should be playing right now; all others fade out."""
+    def set_held(
+        self, sounds: set[Sound], volume_scales: dict[Sound, float] | None = None
+    ):
+        """Set held sounds and optional per-sound volume multipliers."""
+        volume_scales = volume_scales or {}
         for sound, channel in self._channels.items():
             channel.held = sound in sounds
+            channel.volume_scale = max(0.0, min(1.0, volume_scales.get(sound, 1.0)))
 
     def trigger(self, sound: Sound) -> bool:
         """Play `sound` once. Returns False if it was already playing."""

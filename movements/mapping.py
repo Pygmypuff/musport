@@ -16,11 +16,11 @@ SOUNDS_DIR = Path(__file__).resolve().parent.parent / "assets" / "sounds"
 
 
 class Movement(str, Enum):
-    SIDE_BEND = "side_bend"  # one hand up, torso leaning
+    SIDE_BEND = "side_bend"  # one wrist above shoulder, shoulders uneven
     NECK_TURN = "neck_turn"  # head / neck rotation
     BEND_DOWN = "bend_down"  # forward fold
     LEG_EXTENSION = "leg_extension"
-    TORSO_TURN = "torso_turn"
+    TORSO_TURN = "torso_turn"  # shoulder width narrows relative to hips
     HEEL_RAISE = "heel_raise"  # seated heel raise
     FINGER_EXTENSION = "finger_extension"
     FIST = "fist"
@@ -49,7 +49,8 @@ ALL_SOUNDS = (BREEZE, BIRDS, RAIN, WIND, WATER, LEAVES, CRICKET)
 
 # "continuous": plays while the movement is being done, fades out after.
 # "oneshot":    plays once when the movement starts.
-Playback = Literal["oneshot", "continuous"]
+# "sequence":   plays when a configured movement sequence completes.
+Playback = Literal["oneshot", "continuous", "sequence"]
 
 
 @dataclass(frozen=True)
@@ -64,7 +65,7 @@ class SoundSpec:
 
 MOVEMENT_SOUNDS: dict[Movement, SoundSpec] = {
     Movement.SIDE_BEND: SoundSpec(
-        label="Side bend (one hand up)",
+        label="Side bend (one hand up, shoulders uneven)",
         sound=BREEZE,
         playback="continuous",
         keyboard="b",
@@ -94,21 +95,21 @@ MOVEMENT_SOUNDS: dict[Movement, SoundSpec] = {
         keyboard="4",
     ),
     Movement.HEEL_RAISE: SoundSpec(
-        label="Seated heel raise",
+        label="Heel raise / ankle rotation",
         sound=LEAVES,
         playback="oneshot",
         keyboard="5",
     ),
     Movement.FINGER_EXTENSION: SoundSpec(
-        label="Finger extension",
+        label="Open palm",
         sound=CRICKET,
-        playback="oneshot",
+        playback="sequence",
         keyboard="c",
     ),
     Movement.FIST: SoundSpec(
         label="Fist",
         sound=CRICKET,
-        playback="oneshot",
+        playback="sequence",
         keyboard="c",
     ),
 }
@@ -121,6 +122,6 @@ def sound_path(filename: str) -> Path:
 
 
 def display_name(movement: Movement) -> str:
-    """Short UI label: 'Breeze — Side bend (one hand up)'."""
+    """Short UI label, such as 'Breeze — Side bend (one hand up, shoulders uneven)'."""
     spec = MOVEMENT_SOUNDS[movement]
     return f"{spec.sound.name} — {spec.label}"

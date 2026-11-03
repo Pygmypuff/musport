@@ -97,10 +97,9 @@ def _angle_deg(u, v, as_lines: bool = False) -> float:
 
 
 def detect_side_bend(landmarks, prev_landmarks=None) -> bool:
-    """Breeze — one hand raised with a side lean."""
+    """Breeze — one wrist raised above its shoulder with tilted shoulders."""
     points = _points(
         landmarks,
-        LM.NOSE,
         LM.LEFT_SHOULDER,
         LM.RIGHT_SHOULDER,
         LM.LEFT_WRIST,
@@ -108,22 +107,16 @@ def detect_side_bend(landmarks, prev_landmarks=None) -> bool:
     )
     if points is None:
         return False
-    nose, l_sh, r_sh, l_wr, r_wr = points
+    l_sh, r_sh, l_wr, r_wr = points
 
-    tilt = abs(l_sh[1] - r_sh[1]) / _width(l_sh, r_sh)
+    shoulder_elevation = abs(l_sh[1] - r_sh[1]) / _width(l_sh, r_sh)
 
-    left_up = l_wr[1] < nose[1] - P.SIDE_BEND_WRIST_ABOVE_NOSE
-    right_up = r_wr[1] < nose[1] - P.SIDE_BEND_WRIST_ABOVE_NOSE
+    left_up = l_wr[1] < l_sh[1] - P.SIDE_BEND_WRIST_ABOVE_SHOULDER
+    right_up = r_wr[1] < r_sh[1] - P.SIDE_BEND_WRIST_ABOVE_SHOULDER
     if left_up == right_up:
         return False  # need exactly one hand up
 
-    if left_up:
-        outboard = l_wr[0] > l_sh[0] + P.SIDE_BEND_WRIST_OUTBOARD
-    else:
-        outboard = r_wr[0] < r_sh[0] - P.SIDE_BEND_WRIST_OUTBOARD
-
-    # One hand up is the class cue; tilt or outboard arm confirms side bend.
-    return tilt >= P.SIDE_BEND_SHOULDER_TILT or outboard
+    return shoulder_elevation >= P.SIDE_BEND_SHOULDER_ELEVATION
 
 
 def detect_neck_turn(landmarks, prev_landmarks=None) -> bool:
@@ -151,75 +144,29 @@ def detect_neck_turn(landmarks, prev_landmarks=None) -> bool:
         if abs(nose[0] - prev_nose[0]) / shoulder_w >= P.NECK_TURN_NOSE_DELTA:
             return True
 
+    if prev_landmarks is not None:
+        prev_points = _points(
+            prev_landmarks,
+            LM.NOSE,
+            LM.LEFT_SHOULDER,
+            LM.RIGHT_SHOULDER,
+        )
+        if prev_points is not None:
+            prev_nose, prev_l_sh, prev_r_sh = prev_points
+            prev_shoulder_mid = _mid(prev_l_sh, prev_r_sh)
+            current_head_height = nose[1] - mid[1]
+            previous_head_height = prev_nose[1] - prev_shoulder_mid[1]
+            if (
+                abs(current_head_height - previous_head_height) / shoulder_w
+                >= P.NECK_TURN_NOSE_VERTICAL_DELTA
+            ):
+                return True
+
     return False
 
 
 def detect_bend_down(landmarks, prev_landmarks=None) -> bool:
     """Rain — forward fold / bend down (seated or standing)."""
-    points = _points(
-        landmarks,
-        LM.NOSE,
-        LM.LEFT_SHOULDER,
-        LM.RIGHT_SHOULDER,
-        LM.LEFT_HIP,
-        LM.RIGHT_HIP,
-    )
-    if points is None:
-        return False
-    nose, l_sh, r_sh, l_hip, r_hip = points
-
-    sh = _mid(l_sh, r_sh)
-    hip = _mid(l_hip, r_hip)
-
-    torso = hip[1] - sh[1]
-    if torso < 0.05:
-        return False  # hips not below shoulders — bad crop / lying down
-
-    # Nose traveled from shoulders toward hips (~0 upright → ~1 folded).
-    nose_ratio = (nose[1] - sh[1]) / torso
-    if nose_ratio >= P.BEND_DOWN_NOSE_RATIO:
-        return True
-
-    # Forward lean toward camera shortens apparent torso vs hip width.
-    hip_w = _width(l_hip, r_hip)
-    if torso / hip_w < P.BEND_DOWN_TORSO_COMPRESS and nose[1] > sh[1] + 0.05:
-        return True
-
-    return False
-
-
-def _leg_extended(landmarks, hip_i, knee_i, ankle_i) -> bool:
-    points = _points(landmarks, hip_i, knee_i, ankle_i)
-    if points is None:
-        return False
-    hip, knee, ankle = points
-
-    # Knee angle (hip–knee–ankle); 180° is straight.
-    angle = _angle_deg(_vec(knee, hip), _vec(knee, ankle))
-    if angle < P.LEG_EXT_MIN_KNEE_ANGLE:
-        return False
-
-    if _dist2(hip, ankle) < P.LEG_EXT_MIN_HIP_ANKLE:
-        return False
-
-    # Seated kick: ankle roughly level with knee (not hanging straight down).
-    if abs(ankle[1] - knee[1]) > P.LEG_EXT_ANKLE_KNEE_Y:
-        # Still allow standing-ish straight leg if hip–ankle is long and knee open.
-        if angle < 165.0:
-            return False
-
-    return True
-
-
-def detect_leg_extension(landmarks, prev_landmarks=None) -> bool:
-    """Wind — one or both legs extended."""
-    left = _leg_extended(landmarks, LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE)
-    right = _leg_extended(landmarks, LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE)
-    return left or right
-
-
-def detect_torso_turn(landmarks, prev_landmarks=None) -> bool:
-    """Water — seated torso rotation."""
     points = _points(
         landmarks,
         LM.LEFT_SHOULDER,
@@ -231,60 +178,168 @@ def detect_torso_turn(landmarks, prev_landmarks=None) -> bool:
         return False
     l_sh, r_sh, l_hip, r_hip = points
 
-    # Twist: shoulder line rotated vs hip line.
-    twist = _angle_deg(_vec(l_sh, r_sh), _vec(l_hip, r_hip), as_lines=True)
-    if twist >= P.TORSO_TURN_LINE_ANGLE:
-        return True
+    sh = _mid(l_sh, r_sh)
+    hip = _mid(l_hip, r_hip)
 
-    if abs(l_sh[2] - r_sh[2]) >= P.TORSO_TURN_SHOULDER_Z:
-        return True
+    torso_x = sh[0] - hip[0]
+    torso_y = hip[1] - sh[1]
+    if torso_y < 0.05:
+        return False  # hips not below shoulders — bad crop / lying down
 
-    return False
+    # Measure torso lean from vertical in the image plane.
+    bend_angle = math.degrees(math.atan2(abs(torso_x), torso_y))
+    return bend_angle + 1e-6 >= P.BEND_DOWN_MIN_ANGLE_DEG
+
+
+def _max_leg_extension_angle(landmarks) -> float | None:
+    angles = []
+    for hip_i, knee_i, ankle_i in (
+        (LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
+        (LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
+    ):
+        points = _points(landmarks, hip_i, knee_i, ankle_i)
+        if points is None:
+            continue
+        hip, knee, ankle = points
+        angles.append(_angle_deg(_vec(knee, hip), _vec(knee, ankle)))
+    return max(angles) if angles else None
+
+
+def leg_extension_intensity(landmarks) -> float:
+    """Return a 0–1 Wind volume scale based on the most-extended knee."""
+    angle = _max_leg_extension_angle(landmarks)
+    if angle is None or angle <= P.LEG_EXT_MIN_KNEE_ANGLE + 1e-6:
+        return 0.0
+    angle_range = P.LEG_EXT_FULL_VOLUME_ANGLE - P.LEG_EXT_MIN_KNEE_ANGLE
+    return min(1.0, (angle - P.LEG_EXT_MIN_KNEE_ANGLE) / angle_range)
+
+
+def detect_leg_extension(landmarks, prev_landmarks=None) -> bool:
+    """Wind — one or both legs extended."""
+    angle = _max_leg_extension_angle(landmarks)
+    return angle is not None and angle > P.LEG_EXT_MIN_KNEE_ANGLE + 1e-6
+
+
+def torso_shoulder_hip_width_ratio(landmarks) -> float | None:
+    """Return shoulder width relative to hip width when both are visible."""
+    points = _points(
+        landmarks,
+        LM.LEFT_SHOULDER,
+        LM.RIGHT_SHOULDER,
+        LM.LEFT_HIP,
+        LM.RIGHT_HIP,
+    )
+    if points is None:
+        return None
+    l_sh, r_sh, l_hip, r_hip = points
+    hip_width = _width(l_hip, r_hip)
+    if hip_width <= 1e-3:
+        return None
+    return _width(l_sh, r_sh) / hip_width
+
+
+def torso_turn_angle(landmarks, neutral_width_ratio: float | None) -> float:
+    """Estimate turn angle from shoulder-width reduction relative to the hips."""
+    current_ratio = torso_shoulder_hip_width_ratio(landmarks)
+    if current_ratio is None or neutral_width_ratio is None or neutral_width_ratio <= 0:
+        return 0.0
+    width_ratio = min(1.0, current_ratio / neutral_width_ratio)
+    return math.degrees(math.acos(width_ratio))
+
+
+def torso_turn_intensity(landmarks, neutral_width_ratio: float | None) -> float:
+    """Return a 0–1 Water volume scale from turn angle."""
+    angle = torso_turn_angle(landmarks, neutral_width_ratio)
+    if angle <= P.TORSO_TURN_MIN_ANGLE_DEG + 1e-6:
+        return 0.0
+    angle_range = (
+        P.TORSO_TURN_FULL_VOLUME_ANGLE_DEG - P.TORSO_TURN_MIN_ANGLE_DEG
+    )
+    return min(
+        1.0,
+        (angle - P.TORSO_TURN_MIN_ANGLE_DEG) / angle_range,
+    )
+
+
+def detect_torso_turn(
+    landmarks, prev_landmarks=None, neutral_width_ratio: float | None = None
+) -> bool:
+    """Water — turn more than 15° from the person's neutral shoulder width."""
+    return (
+        torso_turn_angle(landmarks, neutral_width_ratio)
+        > P.TORSO_TURN_MIN_ANGLE_DEG + 1e-6
+    )
 
 
 def detect_heel_raise(landmarks, prev_landmarks=None) -> bool:
-    """Leaves — seated heel raise (heels up, toes down)."""
-
-    def side(heel_i, toe_i, ankle_i) -> bool:
-        foot = _points(landmarks, heel_i, toe_i)
-        if foot is not None:
-            heel, toe = foot
-            if toe[1] - heel[1] >= P.HEEL_RAISE_HEEL_ABOVE_TOES:
-                return True
+    """Leaves — ankle angle above 120° or rotating while its leg is extended."""
+    for hip_i, knee_i, ankle_i, toe_i in (
+        (LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE, LM.LEFT_FOOT_INDEX),
+        (LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE, LM.RIGHT_FOOT_INDEX),
+    ):
+        points = _points(landmarks, knee_i, ankle_i, toe_i)
+        if points is None:
+            continue
+        knee, ankle, toe = points
+        ankle_angle = _angle_deg(_vec(ankle, knee), _vec(ankle, toe))
+        if ankle_angle > P.HEEL_RAISE_ANKLE_ANGLE_DEG + 1e-6:
+            return True
 
         if (
-            prev_landmarks is not None
-            and _present(landmarks, ankle_i)
-            and _present(prev_landmarks, ankle_i)
+            prev_landmarks is None
+            or not _present(landmarks, hip_i)
+            or not _present(prev_landmarks, knee_i, ankle_i, toe_i)
         ):
-            ankle = _pt(landmarks, ankle_i)
-            prev = _pt(prev_landmarks, ankle_i)
-            # y decreases as the ankle rises in the image.
-            if prev[1] - ankle[1] >= P.HEEL_RAISE_ANKLE_LIFT:
-                return True
-        return False
-
-    left = side(LM.LEFT_HEEL, LM.LEFT_FOOT_INDEX, LM.LEFT_ANKLE)
-    right = side(LM.RIGHT_HEEL, LM.RIGHT_FOOT_INDEX, LM.RIGHT_ANKLE)
-    return left or right
+            continue
+        previous_knee, previous_ankle, previous_toe = _points(
+            prev_landmarks, knee_i, ankle_i, toe_i
+        )
+        hip = _pt(landmarks, hip_i)
+        knee_angle = _angle_deg(_vec(knee, hip), _vec(knee, ankle))
+        previous_ankle_angle = _angle_deg(
+            _vec(previous_ankle, previous_knee),
+            _vec(previous_ankle, previous_toe),
+        )
+        if (
+            knee_angle > P.LEG_EXT_MIN_KNEE_ANGLE
+            and abs(ankle_angle - previous_ankle_angle)
+            >= P.HEEL_RAISE_ANKLE_ROTATION_DEG - 1e-6
+        ):
+            return True
+    return False
 
 
 # --- Hand detectors --------------------------------------------------
 
 
 def detect_finger_extension(hand_landmarks: Sequence) -> bool:
-    """Cricket — open hand / fingers extended."""
+    """Detect an open palm with all four fingers extended."""
     wrist = _pt(hand_landmarks, HAND.WRIST)
 
-    def extended(tip: int, pip: int) -> bool:
+    def tip_to_pip_ratio(tip: int, pip: int) -> float | None:
         tip_d = _dist2(_pt(hand_landmarks, tip), wrist)
         pip_d = _dist2(_pt(hand_landmarks, pip), wrist)
         if pip_d < 1e-6:
-            return False
-        return tip_d / pip_d >= P.FINGER_EXT_TIP_RATIO
+            return None
+        return tip_d / pip_d
 
-    extended_count = sum(extended(tip, pip) for tip, pip in FINGER_JOINTS)
+    ratios = [tip_to_pip_ratio(tip, pip) for tip, pip in FINGER_JOINTS]
+    extended_count = sum(
+        ratio is not None and ratio >= P.FINGER_EXT_TIP_RATIO
+        for ratio in ratios
+    )
     return extended_count >= P.FINGER_EXT_MIN_COUNT
+
+
+def detect_fist(hand_landmarks: Sequence) -> bool:
+    """Detect a closed fist from all four fingers being flexed."""
+    wrist = _pt(hand_landmarks, HAND.WRIST)
+    for tip, pip in FINGER_JOINTS:
+        tip_d = _dist2(_pt(hand_landmarks, tip), wrist)
+        pip_d = _dist2(_pt(hand_landmarks, pip), wrist)
+        if pip_d < 1e-6 or tip_d / pip_d > P.FIST_TIP_RATIO_MAX:
+            return False
+    return True
 
 
 # Pose-landmark detectors run by PoseDetector, in priority order.

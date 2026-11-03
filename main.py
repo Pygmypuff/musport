@@ -22,22 +22,38 @@ from audio.sound_engine import SoundEngine
 from detection.gesture_pipeline import GesturePipeline
 from detection.person_tracker import Event, PersonTracker, SequenceEvent
 from detection.yolo_detector import YoloPersonDetector
-from movements.mapping import MOVEMENT_SOUNDS
+from movements.mapping import MOVEMENT_SOUNDS, Movement
 
 
 MODEL_PATH = str(Path(__file__).resolve().parent / "yolo26n-pose.pt")
 
 
-def update_sounds(sounds: SoundEngine, tracker: PersonTracker, events: list[Event]):
+def update_sounds(
+    sounds: SoundEngine,
+    tracker: PersonTracker,
+    events: list[Event],
+    movement_intensities: dict[Movement, dict[int, float]],
+):
     """
     Continuous movements hold their sound while anyone is doing them.
     One-shot movements and completed sequences trigger theirs once.
     """
-    sounds.set_held({
+    held_sounds = {
         MOVEMENT_SOUNDS[m].sound
         for m in tracker.active_movements()
         if MOVEMENT_SOUNDS[m].playback == "continuous"
-    })
+    }
+    volume_scales = {}
+    for movement, person_intensities in movement_intensities.items():
+        active_intensities = [
+            person_intensities.get(person_id, 0.0)
+            for person_id, person in tracker.people.items()
+            if movement in person.active
+        ]
+        volume_scales[MOVEMENT_SOUNDS[movement].sound] = max(
+            active_intensities, default=0.0
+        )
+    sounds.set_held(held_sounds, volume_scales=volume_scales)
 
     for event in events:
         if isinstance(event, SequenceEvent):
@@ -69,6 +85,10 @@ def main():
 
             detections = {}
             crops = {}
+            movement_intensities = {
+                Movement.LEG_EXTENSION: {},
+                Movement.TORSO_TURN: {},
+            }
 
             for person in detector.detect(frame):
                 x1, y1, x2, y2 = person["bbox"]
@@ -83,10 +103,16 @@ def main():
                 detections[person["id"]] = pipeline.process(
                     person["id"], display_crop
                 )
+                movement_intensities[Movement.LEG_EXTENSION][person["id"]] = (
+                    pipeline.leg_extension_intensity(person["id"])
+                )
+                movement_intensities[Movement.TORSO_TURN][person["id"]] = (
+                    pipeline.torso_turn_intensity(person["id"])
+                )
                 crops[person["id"]] = display_crop
 
             events = tracker.update(detections, now)
-            update_sounds(sounds, tracker, events)
+            update_sounds(sounds, tracker, events, movement_intensities)
 
             person_views = []
             for person_id, crop in crops.items():

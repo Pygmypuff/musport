@@ -33,6 +33,12 @@ class GesturePipeline:
                 combined.append(movement)
         return combined
 
+    def leg_extension_intensity(self, person_id: int) -> float:
+        return self.pose_detector.leg_extension_intensity(person_id)
+
+    def torso_turn_intensity(self, person_id: int) -> float:
+        return self.pose_detector.torso_turn_intensity(person_id)
+
     def forget(self, person_id: int):
         """Drop any per-person state kept for someone who has left."""
         self.pose_detector.forget(person_id)

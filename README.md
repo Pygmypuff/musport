@@ -8,13 +8,13 @@ The forest bed stays on in the background. When someone in frame does a mapped m
 
 | Sound   | Movement                         | Playback    | How it is detected |
 |---------|----------------------------------|-------------|--------------------|
-| Breeze  | Side bend (one hand up)          | Continuous  | One wrist above nose + shoulder tilt or outboard arm |
-| Birds   | Neck movements / head turn       | One-shot    | Nose off shoulder midline, ear depth, or head motion |
-| Rain    | Bend down                        | Continuous  | Nose dropped toward hips along the torso |
-| Wind    | Leg extension                    | Continuous  | Straight knee angle + long hip→ankle |
-| Water   | Torso turn                       | Continuous  | Shoulder line twisted vs hips, or shoulder depth |
-| Leaves  | Seated heel raise                | One-shot    | Heel above toes, or ankle lifting across frames |
-| Cricket | Finger extension                 | One-shot    | All four fingers extended (tip farther than pip) |
+| Breeze  | Side bend (one hand up)          | Continuous  | Exactly one wrist above its shoulder + shoulder elevation difference |
+| Birds   | Neck movements / head turn       | One-shot    | Nose off shoulder midline, ear depth, or vertical head movement relative to shoulders |
+| Rain    | Bend down                        | Continuous  | Torso axis leans at least 25° from vertical |
+| Wind    | Leg extension                    | Continuous  | Knee angle above 105°; volume rises linearly to full at 180° |
+| Water   | Torso turn                       | Continuous  | Shoulder width narrows >15° vs personal neutral shoulder-to-hip ratio; volume scales with turn |
+| Leaves  | Heel raise / ankle rotation      | One-shot    | Ankle angle >120°, or ≥15° ankle rotation while the knee is extended >105° |
+| Cricket | Fist → open palm → fist           | One-shot    | One person makes each hand shape in order |
 
 - **Continuous:** plays while anyone is doing the movement, then fades out over 0.5s and stops once nobody is.
 - **One-shot:** plays once when someone starts the movement.
@@ -28,6 +28,7 @@ A sequence is a list of movements one person does in order, within a time window
 | Sound  | Sequence              | Within |
 |--------|-----------------------|--------|
 | Leaves | Side bend → bend down | 5s     |
+| Cricket | Fist → open palm → fist | 5s |
 
 The person's tile shows the sequence name for a few seconds after they complete it.
 
@@ -101,4 +102,4 @@ If a move rarely triggers or false-triggers, edit the constants in `movements/pa
 
 ## Next steps
 
-1. Optionally scale continuous volume by movement depth (bend angle → intensity).
+1. Optionally scale continuous volume by movement depth for other movements.

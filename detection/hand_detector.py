@@ -1,15 +1,15 @@
 """
 MediaPipe Hand Landmarker → finger / hand yoga cues.
 
-Draws the hand skeleton onto the crop and returns Movement values
-(currently finger extension → cricket).
+Draws the hand skeleton onto the crop and reports fist or open-palm
+states for the Cricket gesture sequence.
 """
 
 import cv2
 from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions
 
 from detection.landmark_detector import LandmarkDetector
-from movements.detectors import detect_finger_extension
+from movements.detectors import detect_finger_extension, detect_fist
 from movements.mapping import Movement
 
 CONNECTIONS = [
@@ -52,8 +52,10 @@ class HandDetector(LandmarkDetector):
         for hand_landmarks in hands:
             self.draw_hand(person_crop, hand_landmarks)
 
+        if not hands:
+            return []
         if any(detect_finger_extension(hand) for hand in hands):
             return [Movement.FINGER_EXTENSION]
-        else:
+        if any(detect_fist(hand) for hand in hands):
             return [Movement.FIST]
         return []

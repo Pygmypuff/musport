@@ -23,19 +23,22 @@ class MovementSequence:
     sound: Sound
 
 
+SIDE_BEND_THEN_BEND_DOWN = MovementSequence(
+    name="Side bend → bend down",
+    steps=(Movement.SIDE_BEND, Movement.BEND_DOWN),
+    within_seconds=5.0,
+    sound=LEAVES,
+)
+FIST_OPEN_PALM_FIST = MovementSequence(
+    name="Fist → open palm → fist",
+    steps=(Movement.FIST, Movement.FINGER_EXTENSION, Movement.FIST),
+    within_seconds=5.0,
+    sound=CRICKET,
+)
+
 SEQUENCES: list[MovementSequence] = [
-    MovementSequence(
-        name="Side bend → bend down",
-        steps=(Movement.SIDE_BEND, Movement.BEND_DOWN),
-        within_seconds=5.0,
-        sound=LEAVES,
-    ),
-    MovementSequence(
-        name="Fist → Finger Extension",
-        steps=(Movement.FIST, Movement.FINGER_EXTENSION),
-        within_seconds=5.0,
-        sound=CRICKET,
-    ),
+    SIDE_BEND_THEN_BEND_DOWN,
+    FIST_OPEN_PALM_FIST,
 ]
 
 

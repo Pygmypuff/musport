@@ -9,11 +9,13 @@ complete a movement sequence (movements/sequences.py).
 Timing thresholds live in movements/parameters.py.
 """
 
+from __future__ import annotations
+
 import math
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Union
 
 from movements import parameters as P
 from movements.mapping import Movement
@@ -35,7 +37,7 @@ class SequenceEvent:
     time: float
 
 
-Event = MovementEvent | SequenceEvent
+Event = Union[MovementEvent, SequenceEvent]
 
 
 class PersonState:
@@ -68,6 +70,9 @@ class PersonState:
             # A gap shorter than the end delay doesn't break the run.
             if now - last >= P.MOVEMENT_END_SECONDS:
                 self._run_start[movement] = now
+                if movement in self.active:
+                    self.active.remove(movement)
+                    events.append(MovementEvent(self.id, movement, "end", now))
             self._last_detected[movement] = now
 
             held_for = now - self._run_start[movement]

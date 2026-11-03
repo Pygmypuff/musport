@@ -9,7 +9,12 @@ hand_detector.py.
 from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions
 
 from detection.landmark_detector import LandmarkDetector
-from movements.detectors import POSE_DETECTORS
+from movements.detectors import (
+    POSE_DETECTORS,
+    leg_extension_intensity,
+    torso_shoulder_hip_width_ratio,
+    torso_turn_intensity,
+)
 from movements.mapping import Movement
 
 
@@ -24,20 +29,41 @@ class PoseDetector(LandmarkDetector):
         super().__init__(PoseLandmarker, PoseLandmarkerOptions, num_poses=1)
         # Previous landmarks per person for temporal cues (neck turn, heel raise).
         self._prev_landmarks: dict[int, object] = {}
+        self._leg_extension_intensities: dict[int, float] = {}
+        self._torso_turn_baselines: dict[int, float] = {}
+        self._torso_turn_intensities: dict[int, float] = {}
 
     def detect(self, person_id: int, person_crop) -> list[Movement]:
         """Return yoga movements held in `person_crop`."""
         result = self.find_landmarks(person_crop)
         if not result.pose_landmarks:
             self._prev_landmarks.pop(person_id, None)
+            self._leg_extension_intensities.pop(person_id, None)
+            self._torso_turn_baselines.pop(person_id, None)
+            self._torso_turn_intensities.pop(person_id, None)
             return []
 
         landmarks = result.pose_landmarks[0]
+        self._leg_extension_intensities[person_id] = leg_extension_intensity(landmarks)
+        current_width_ratio = torso_shoulder_hip_width_ratio(landmarks)
+        if current_width_ratio is not None:
+            baseline = self._torso_turn_baselines.get(person_id, current_width_ratio)
+            baseline = max(baseline, current_width_ratio)
+            self._torso_turn_baselines[person_id] = baseline
+        else:
+            baseline = self._torso_turn_baselines.get(person_id)
+        self._torso_turn_intensities[person_id] = torso_turn_intensity(
+            landmarks, baseline
+        )
         prev = self._prev_landmarks.get(person_id)
 
         found: list[Movement] = []
         for movement, detector in POSE_DETECTORS:
-            if detector(landmarks, prev):
+            if movement is Movement.TORSO_TURN:
+                detected = detector(landmarks, prev, baseline)
+            else:
+                detected = detector(landmarks, prev)
+            if detected:
                 found.append(movement)
 
         # Side bend tilts the shoulders/head — don't also fire twist/neck.
@@ -54,9 +80,23 @@ class PoseDetector(LandmarkDetector):
         self._prev_landmarks[person_id] = landmarks
         return found
 
+    def leg_extension_intensity(self, person_id: int) -> float:
+        """Current 0–1 Wind volume scale for a tracked person."""
+        return self._leg_extension_intensities.get(person_id, 0.0)
+
+    def torso_turn_intensity(self, person_id: int) -> float:
+        """Current 0–1 Water volume scale for a tracked person."""
+        return self._torso_turn_intensities.get(person_id, 0.0)
+
     def forget(self, person_id: int):
         self._prev_landmarks.pop(person_id, None)
+        self._leg_extension_intensities.pop(person_id, None)
+        self._torso_turn_baselines.pop(person_id, None)
+        self._torso_turn_intensities.pop(person_id, None)
 
     def close(self):
         super().close()
         self._prev_landmarks.clear()
+        self._leg_extension_intensities.clear()
+        self._torso_turn_baselines.clear()
+        self._torso_turn_intensities.clear()
