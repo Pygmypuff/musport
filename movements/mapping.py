@@ -65,13 +65,13 @@ class SoundSpec:
 
 MOVEMENT_SOUNDS: dict[Movement, SoundSpec] = {
     Movement.SIDE_BEND: SoundSpec(
-        label="Side bend (one hand up, shoulders uneven)",
+        label="Side bend",
         sound=BREEZE,
         playback="continuous",
         keyboard="b",
     ),
     Movement.NECK_TURN: SoundSpec(
-        label="Neck / head turn",
+        label="Neck/head turn",
         sound=BIRDS,
         playback="continuous",
         keyboard="1",
@@ -95,7 +95,7 @@ MOVEMENT_SOUNDS: dict[Movement, SoundSpec] = {
         keyboard="4",
     ),
     Movement.HEEL_RAISE: SoundSpec(
-        label="Heel raise / ankle rotation",
+        label="Ankle Raise/Rotation",
         sound=LEAVES,
         playback="oneshot",
         keyboard="5",
@@ -124,4 +124,5 @@ def sound_path(filename: str) -> Path:
 def display_name(movement: Movement) -> str:
     """Short UI label, such as 'Breeze — Side bend (one hand up, shoulders uneven)'."""
     spec = MOVEMENT_SOUNDS[movement]
-    return f"{spec.sound.name} — {spec.label}"
+    #return f"{spec.sound.name} - {spec.label}""
+    return f"{spec.label}"
