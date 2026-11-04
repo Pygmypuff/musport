@@ -19,14 +19,15 @@ from movements.sequences import (
 )
 
 ENABLED_MOVEMENTS: dict[Movement, bool] = {
-    Movement.SIDE_BEND: True,
-    Movement.NECK_TURN: True,
-    Movement.BEND_DOWN: True,
+    Movement.SIDE_BEND: False,
+    Movement.NECK_TURN: False, # If move neck up and down too slowly, it will not detect since the position difference between frames is smaller than the threshold but still moving. 
+    # We think it works good enough to keep since less people will move that slow.
+    Movement.BEND_DOWN: False,
     Movement.LEG_EXTENSION: True,
-    Movement.TORSO_TURN: True,
-    Movement.HEEL_RAISE: True,
-    Movement.FINGER_EXTENSION: True,
-    Movement.FIST: True,
+    Movement.TORSO_TURN: False,
+    Movement.HEEL_RAISE: True, #Changed a LOT of stuff for this, still needs a lot of testing and stuff to tune parameters and calculations
+    Movement.FINGER_EXTENSION: False,
+    Movement.FIST: False,
 }
 
 ENABLED_SEQUENCES: dict[MovementSequence, bool] = {

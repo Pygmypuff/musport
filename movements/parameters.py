@@ -46,6 +46,9 @@ TORSO_TURN_FULL_VOLUME_ANGLE_DEG = 90.0
 HEEL_RAISE_ANKLE_ANGLE_DEG = 120.0
 # Ankle angle change that counts as rotation while that leg is extended.
 HEEL_RAISE_ANKLE_ROTATION_DEG = 15.0
+# Toe movement relative to the ankle between frames, as a fraction of
+# shin length. Starting guess; tune against real footage.
+HEEL_RAISE_ANKLE_MOVEMENT = 0.10
 
 # --- Cricket: fist / open-palm sequence -----------------------------
 # tip→wrist distance must exceed pip→wrist by this factor.

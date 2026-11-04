@@ -72,26 +72,30 @@ def _width(a, b) -> float:
     return max(_dist2(a, b), 1e-3)
 
 
-def _vec(a, b) -> tuple[float, float]:
-    """Vector from a to b."""
-    return b[0] - a[0], b[1] - a[1]
+def _vec(a, b, dims: int = 2) -> tuple[float, ...]:
+    """Vector from a to b using the first `dims` coordinates (2 = x/y, 3 = x/y/z)."""
+    return tuple(b[i] - a[i] for i in range(dims))
 
 
 def _angle_deg(u, v, as_lines: bool = False) -> float:
     """Angle between vectors u and v in degrees [0, 180].
 
+    Works for vectors of any matching length (2D or 3D).
     With as_lines=True direction is ignored, giving the angle between
     the two lines instead: 0 = parallel, 90 = perpendicular.
     """
-    nu = math.hypot(u[0], u[1])
-    nv = math.hypot(v[0], v[1])
+    nu = math.hypot(*u)
+    nv = math.hypot(*v)
     if nu < 1e-6 or nv < 1e-6:
         return 0.0
-    cos_a = (u[0] * v[0] + u[1] * v[1]) / (nu * nv)
+    cos_a = sum(a * b for a, b in zip(u, v)) / (nu * nv)
     if as_lines:
         cos_a = abs(cos_a)
     return math.degrees(math.acos(max(-1.0, min(1.0, cos_a))))
 
+def _dist3(a, b) -> float:
+    """3D distance between two (x, y, z) points."""
+    return math.dist(a[:3], b[:3])
 
 # --- Pose detectors --------------------------------------------------
 
@@ -192,6 +196,7 @@ def detect_bend_down(landmarks, prev_landmarks=None) -> bool:
 
 
 def _max_leg_extension_angle(landmarks) -> float | None:
+    """Largest 3D knee angle (hip-knee-ankle) across both legs, in degrees."""
     angles = []
     for hip_i, knee_i, ankle_i in (
         (LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
@@ -201,9 +206,10 @@ def _max_leg_extension_angle(landmarks) -> float | None:
         if points is None:
             continue
         hip, knee, ankle = points
-        angles.append(_angle_deg(_vec(knee, hip), _vec(knee, ankle)))
+        angles.append(
+            _angle_deg(_vec(knee, hip, dims=3), _vec(knee, ankle, dims=3))
+        )
     return max(angles) if angles else None
-
 
 def leg_extension_intensity(landmarks) -> float:
     """Return a 0–1 Wind volume scale based on the most-extended knee."""
@@ -272,39 +278,44 @@ def detect_torso_turn(
 
 
 def detect_heel_raise(landmarks, prev_landmarks=None) -> bool:
-    """Leaves — ankle angle above 120° or rotating while its leg is extended."""
+    """Leaves — ankle moving while its leg is extended (seated).
+
+    Per leg, both must hold:
+      1. the knee angle is above P.LEG_EXT_MIN_KNEE_ANGLE (leg out), and
+      2. the toe moved relative to the ankle by at least
+         P.HEEL_RAISE_ANKLE_MOVEMENT (in shin lengths) since the
+         previous frame.
+    """
+    if prev_landmarks is None:
+        return False  # movement needs a previous frame
+
     for hip_i, knee_i, ankle_i, toe_i in (
         (LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE, LM.LEFT_FOOT_INDEX),
         (LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE, LM.RIGHT_FOOT_INDEX),
     ):
-        points = _points(landmarks, knee_i, ankle_i, toe_i)
-        if points is None:
+        current = _points(landmarks, hip_i, knee_i, ankle_i, toe_i)
+        previous = _points(prev_landmarks, ankle_i, toe_i)
+        if current is None or previous is None:
             continue
-        knee, ankle, toe = points
-        ankle_angle = _angle_deg(_vec(ankle, knee), _vec(ankle, toe))
-        if ankle_angle > P.HEEL_RAISE_ANKLE_ANGLE_DEG + 1e-6:
-            return True
+        hip, knee, ankle, toe = current
+        previous_ankle, previous_toe = previous
 
-        if (
-            prev_landmarks is None
-            or not _present(landmarks, hip_i)
-            or not _present(prev_landmarks, knee_i, ankle_i, toe_i)
-        ):
+        # 1. Leg must be extended out.
+        knee_angle = _angle_deg(
+            _vec(knee, hip, dims=3), _vec(knee, ankle, dims=3)
+        )
+        if knee_angle <= P.LEG_EXT_MIN_KNEE_ANGLE + 1e-6:
             continue
-        previous_knee, previous_ankle, previous_toe = _points(
-            prev_landmarks, knee_i, ankle_i, toe_i
+
+        # 2. Foot must be moving relative to the ankle.
+        foot = _vec(ankle, toe, dims=3)
+        previous_foot = _vec(previous_ankle, previous_toe, dims=3)
+        shin_length = max(_dist3(knee, ankle), 1e-3)
+        movement = (
+            math.hypot(*(c - p for c, p in zip(foot, previous_foot)))
+            / shin_length
         )
-        hip = _pt(landmarks, hip_i)
-        knee_angle = _angle_deg(_vec(knee, hip), _vec(knee, ankle))
-        previous_ankle_angle = _angle_deg(
-            _vec(previous_ankle, previous_knee),
-            _vec(previous_ankle, previous_toe),
-        )
-        if (
-            knee_angle > P.LEG_EXT_MIN_KNEE_ANGLE
-            and abs(ankle_angle - previous_ankle_angle)
-            >= P.HEEL_RAISE_ANKLE_ROTATION_DEG - 1e-6
-        ):
+        if movement >= P.HEEL_RAISE_ANKLE_MOVEMENT - 1e-6:
             return True
     return False
 
