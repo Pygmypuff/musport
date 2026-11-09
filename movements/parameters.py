@@ -14,20 +14,31 @@ MIN_PRESENCE = 0.45
 SIDE_BEND_WRIST_ABOVE_SHOULDER = 0.02
 # Shoulder elevation difference |Δy| / shoulder_width.
 SIDE_BEND_SHOULDER_ELEVATION = 0.12
+# Side-bend score ramp start/end for the torso lean angle used by the
+# revised movement scorer.
+SIDE_BEND_MIN_LATERAL_DEG = 10.0
+SIDE_BEND_FULL_LATERAL_DEG = 30.0
+# If a single raised arm is not visible, the score is multiplied by this.
+SIDE_BEND_NO_ARM_FACTOR = 0.5
 
 # --- Birds: neck / head turn ----------------------------------------
 # |nose.x − shoulder_mid.x| / shoulder_width
-NECK_TURN_NOSE_OFFSET = 0.18
+NECK_TURN_NOSE_OFFSET = 0.14
 # Ear depth asymmetry |left_ear.z − right_ear.z|
 NECK_TURN_EAR_Z = 0.08
 # Temporal: nose.x jump across frames (fraction of shoulder width).
 NECK_TURN_NOSE_DELTA = 0.06
-# Temporal: vertical nose movement relative to the shoulder midpoint.
-NECK_TURN_NOSE_VERTICAL_DELTA = 0.06
+# Per-frame downward nose movement relative to the shoulder midpoint,
+# normalized by shoulder width.
+NECK_TURN_NOSE_VERTICAL_DELTA = 0.035
+# Relative head-yaw ramp used by the revised scorer.
+NECK_TURN_MIN_DEG = 15.0
+NECK_TURN_FULL_DEG = 40.0
 
 # --- Rain: bend down / forward fold ---------------------------------
 # Minimum angle of the hip-to-shoulder torso axis away from vertical.
 BEND_DOWN_MIN_ANGLE_DEG = 25.0
+BEND_DOWN_FULL_ANGLE_DEG = BEND_DOWN_MIN_ANGLE_DEG + 25.0
 
 # --- Wind: leg extension --------------------------------------------
 # Knee angle (hip–knee–ankle) must exceed this to count as extended.
@@ -57,6 +68,15 @@ FINGER_EXT_TIP_RATIO = 1.08
 FINGER_EXT_MIN_COUNT = 4
 # All four fingertips must be this much closer to the wrist than their PIP joints.
 FIST_TIP_RATIO_MAX = 0.95
+# Revised scorer thresholds for hand posture.
+FINGER_EXT_MIN_PIP_ANGLE_DEG = 150.0
+FIST_MAX_PIP_ANGLE_DEG = 100.0
+
+# --- Heel raise / ankle motion ---------------------------------------
+# Window over which the ankle flexion range is measured.
+HEEL_RAISE_WINDOW_S = 0.6
+HEEL_RAISE_MIN_RANGE_DEG = 10.0
+HEEL_RAISE_FULL_RANGE_DEG = 30.0
 
 # --- Timing (seconds) -----------------------------------------------
 # A movement must be detected for this long before it counts as started.

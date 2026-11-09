@@ -52,10 +52,15 @@ def is_completed(
 
     `starts` is one person's (time, movement) history of movement
     starts, oldest first. Every step must have started inside the time
-    window and strictly after `after` (when this sequence last fired),
-    so one run of movements can't complete the same sequence twice.
+    window. The newest start must be strictly after `after` (when this
+    sequence last fired), but earlier steps may overlap the previous
+    occurrence, allowing its final step to start the next occurrence.
     """
-    if not starts or starts[-1][1] != sequence.steps[-1]:
+    if (
+        not starts
+        or starts[-1][1] != sequence.steps[-1]
+        or starts[-1][0] <= after
+    ):
         return False
 
     window_start = starts[-1][0] - sequence.within_seconds
@@ -63,7 +68,7 @@ def is_completed(
 
     # Walk back from the newest start, ticking off steps last to first.
     for time, movement in reversed(starts):
-        if time < window_start or time <= after:
+        if time < window_start:
             return False
         if movement == remaining[-1]:
             remaining.pop()
