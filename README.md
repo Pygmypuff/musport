@@ -12,7 +12,7 @@ An optional forest bed loops in the background (`BACKGROUND_SOUND_ENABLED` in `m
 | Birds   | Neck movements / head turn       | One-shot    | Nose off shoulder midline, ear depth, or vertical head movement relative to shoulders |
 | Rain    | Bend down                        | Continuous  | Torso axis leans at least 25° from vertical |
 | Wind    | Leg extension                    | Continuous  | Knee angle above 105°; volume rises linearly to full at 180° |
-| Water   | Torso turn                       | Continuous  | Shoulder width narrows >15° vs personal neutral shoulder-to-hip ratio; volume scales with turn |
+| Water   | Torso turn                       | Continuous  | Shoulders turned >20° from the person's resting direction (3D shoulder depth); volume scales up to 45° |
 | Leaves  | Heel raise / ankle rotation      | One-shot    | Ankle angle >120°, or ≥15° ankle rotation while the knee is extended >105° |
 | Cricket | Fist → open palm → fist           | One-shot    | One person makes each hand shape in order |
 
@@ -31,6 +31,17 @@ A sequence is a list of movements one person does in order, within a time window
 | Cricket | Fist → open palm → fist | 5s |
 
 The person's tile shows the sequence name for a few seconds after they complete it.
+
+## Who gets analysed
+
+People sit in a semicircle, so some face the camera side-on, where pose detection is unreliable. Everyone does the same movement, so only people facing the camera need analysing.
+
+- Each person's **resting direction** is which way their shoulders usually face: the median over the last 30s. A torso twist barely moves it; the way their chair faces does.
+- People whose resting direction is more than **40°** from the camera are skipped. They aren't run through the gesture pipeline, show as dimmed "Turned away" tiles, and are re-checked every 2s.
+- Each tile's footer shows that person's angle from the camera, to help with chair placement.
+- Torso turn is measured from each person's own resting direction, so someone sitting at an angle isn't always "turning".
+
+Settings: the "Facing the camera" section of `movements/parameters.py`.
 
 ## How sounds behave
 
@@ -73,6 +84,7 @@ detection/
   pose_detector.py      Body landmarks → movements
   hand_detector.py      Hand landmarks → finger extension
   person_tracker.py     Per-person history: movement start/end, sequences
+  facing.py             Which way each person sits; skips people turned away
 movements/
   mapping.py            The sounds, and which movement plays which
   sequences.py          Movement sequences and the sound each plays

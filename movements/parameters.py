@@ -47,10 +47,11 @@ LEG_EXT_MIN_KNEE_ANGLE = 105.0
 LEG_EXT_FULL_VOLUME_ANGLE = 180.0
 
 # --- Water: torso turn ----------------------------------------------
-# Minimum turn angle inferred from shoulder-width reduction vs hip width.
-TORSO_TURN_MIN_ANGLE_DEG = 15.0
-# Water reaches full volume at a 90° turn.
-TORSO_TURN_FULL_VOLUME_ANGLE_DEG = 90.0
+# How far the shoulders have turned from the person's resting direction
+# (see "Facing the camera" below), in degrees. Water starts here...
+TORSO_TURN_MIN_ANGLE_DEG = 20.0
+# ...and reaches full volume here (a full seated twist).
+TORSO_TURN_FULL_VOLUME_ANGLE_DEG = 45.0
 
 # --- Leaves: ankle angle / rotation ---------------------------------
 # Ankle angle between ankle→knee and ankle→foot_index.
@@ -77,6 +78,23 @@ FIST_MAX_PIP_ANGLE_DEG = 100.0
 HEEL_RAISE_WINDOW_S = 0.6
 HEEL_RAISE_MIN_RANGE_DEG = 10.0
 HEEL_RAISE_FULL_RANGE_DEG = 30.0
+
+# --- Facing the camera: who gets analysed ---------------------------
+# A person's resting direction is the median of their shoulder direction
+# over this many seconds. Torso turns held longer than about half of
+# this start to count as the new resting direction and fade out.
+RESTING_DIRECTION_SECONDS = 30.0
+# People whose resting direction is turned further than this from the
+# camera are skipped: not run through the gesture pipeline at all.
+FACING_MAX_TURN_DEG = 40.0
+# ...and are let back in once they're this many degrees inside the limit
+# (stops someone right at the limit flickering in and out).
+FACING_HYSTERESIS_DEG = 5.0
+# Frames needed before a person's direction is known. Until then they're
+# analysed, but torso turn can't fire yet.
+FACING_MIN_SAMPLES = 5
+# How often a skipped person is re-measured, in case they've moved.
+FACING_RECHECK_SECONDS = 2.0
 
 # --- Timing (seconds) -----------------------------------------------
 # A movement must be detected for this long before it counts as started.

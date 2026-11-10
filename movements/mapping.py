@@ -20,7 +20,7 @@ class Movement(str, Enum):
     NECK_TURN = "neck_turn"  # head / neck rotation
     BEND_DOWN = "bend_down"  # forward fold
     LEG_EXTENSION = "leg_extension"
-    TORSO_TURN = "torso_turn"  # shoulder width narrows relative to hips
+    TORSO_TURN = "torso_turn"  # shoulders turned away from the camera
     HEEL_RAISE = "heel_raise"  # seated heel raise
     FINGER_EXTENSION = "finger_extension"
     FIST = "fist"

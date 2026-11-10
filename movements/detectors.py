@@ -288,28 +288,35 @@ def bend_down_score(landmarks, world=None) -> float:
     return _ramp(forward, lo, hi)
 
 
-def torso_turn_score(
-    landmarks, world=None, neutral_width_ratio: float | None = None
-) -> float:
-    """Water — shoulders rotated relative to the hips.
+def shoulder_yaw_deg(landmarks, world) -> float | None:
+    """Which way the shoulders face, in degrees.
 
-    Needs no calibration: shoulder yaw minus hip yaw. If a neutral
-    shoulder/hip width ratio is supplied it is used as a second opinion
-    and the larger of the two scores wins.
+    0 = square to the camera, ±90 = side-on (the sign says which side),
+    ±180 = back to the camera. Read from MediaPipe's 3D world landmarks
+    (metres), which have real depth; the 2D landmarks' depth is too rough
+    for this. Hips aren't used: seated, they're hidden by the thighs and
+    chair. None if the shoulders aren't visible.
     """
-    pts = _geo(
-        landmarks, world,
-        LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, LM.LEFT_HIP, LM.RIGHT_HIP,
-    )
-    if pts is None:
+    if world is None or not _present(landmarks, LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER):
+        return None
+    left = _pt(world, LM.LEFT_SHOULDER)
+    right = _pt(world, LM.RIGHT_SHOULDER)
+    return math.degrees(math.atan2(left[2] - right[2], left[0] - right[0]))
+
+
+def torso_turn_score(yaw: float | None, resting_yaw: float | None) -> float:
+    """Water — shoulders turned away from the person's resting direction.
+
+    Measured against where this person normally faces (detection/facing.py),
+    so someone whose chair is angled to the camera isn't always "turning".
+    0 below TORSO_TURN_MIN_ANGLE_DEG, 1 at the full-volume angle.
+    """
+    if yaw is None or resting_yaw is None:
         return 0.0
-    l_sh, r_sh, l_hip, r_hip = pts
-    yaw = abs(_wrap180(_yaw_deg(l_sh, r_sh) - _yaw_deg(l_hip, r_hip)))
-    lo, hi = P.TORSO_TURN_MIN_ANGLE_DEG, P.TORSO_TURN_FULL_VOLUME_ANGLE_DEG
-    score = _ramp(yaw, lo, hi)
-    if neutral_width_ratio is not None:
-        score = max(score, _ramp(torso_turn_angle(landmarks, neutral_width_ratio), lo, hi))
-    return score
+    twist = abs(_wrap180(yaw - resting_yaw))
+    return _ramp(
+        twist, P.TORSO_TURN_MIN_ANGLE_DEG, P.TORSO_TURN_FULL_VOLUME_ANGLE_DEG
+    )
 
 
 def neck_turn_score(landmarks, world=None, prev_landmarks=None) -> float:
@@ -380,39 +387,6 @@ def leg_extension_intensity(landmarks, world=None) -> float:
 leg_extension_score = leg_extension_intensity
 
 
-# --- Torso width ratio (legacy neutral-calibration approach) ---------
-
-
-def torso_shoulder_hip_width_ratio(landmarks) -> float | None:
-    """Shoulder width relative to hip width when both are visible."""
-    points = _points(
-        landmarks, LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, LM.LEFT_HIP, LM.RIGHT_HIP
-    )
-    if points is None:
-        return None
-    l_sh, r_sh, l_hip, r_hip = points
-    hip_width = _width(l_hip, r_hip)
-    if hip_width <= 1e-3:
-        return None
-    return _width(l_sh, r_sh) / hip_width
-
-
-def torso_turn_angle(landmarks, neutral_width_ratio: float | None) -> float:
-    """Turn angle estimated from shoulder-width reduction relative to the hips."""
-    current_ratio = torso_shoulder_hip_width_ratio(landmarks)
-    if current_ratio is None or neutral_width_ratio is None or neutral_width_ratio <= 0:
-        return 0.0
-    width_ratio = min(1.0, current_ratio / neutral_width_ratio)
-    return math.degrees(math.acos(width_ratio))
-
-
-def torso_turn_intensity(
-    landmarks, neutral_width_ratio: float | None, world=None
-) -> float:
-    """0–1 Water volume scale from turn angle."""
-    return torso_turn_score(landmarks, world, neutral_width_ratio)
-
-
 # --- Stateful scorer + heel raise ------------------------------------
 
 
@@ -424,8 +398,7 @@ class PoseScorer:
     which is independent of frame rate (unlike a frame-to-frame delta).
     """
 
-    def __init__(self, neutral_width_ratio: float | None = None, smooth: bool = True):
-        self.neutral_width_ratio = neutral_width_ratio
+    def __init__(self, smooth: bool = True):
         self._pose_filter = LandmarkSmoother() if smooth else None
         self._world_filter = LandmarkSmoother() if smooth else None
         # side -> deque[(t, ankle_flexion_deg)]
@@ -481,7 +454,7 @@ class PoseScorer:
             Movement.BEND_DOWN: bend_down_score(landmarks, world),
             Movement.SIDE_BEND: side_bend_score(landmarks, world),
             Movement.TORSO_TURN: torso_turn_score(
-                landmarks, world, self.neutral_width_ratio
+                shoulder_yaw_deg(landmarks, world), resting_yaw=0.0
             ),
             Movement.NECK_TURN: neck_turn_score(landmarks, world),
             Movement.HEEL_RAISE: self._heel_raise_score(landmarks, world, t),
@@ -679,12 +652,9 @@ def detect_leg_extension(landmarks, prev_landmarks=None, world=None) -> bool:
 
 
 def detect_torso_turn(
-    landmarks,
-    prev_landmarks=None,
-    neutral_width_ratio: float | None = None,
-    world=None,
+    landmarks, prev_landmarks=None, world=None, resting_yaw=None
 ) -> bool:
-    return torso_turn_score(landmarks, world, neutral_width_ratio) > 0.0
+    return torso_turn_score(shoulder_yaw_deg(landmarks, world), resting_yaw) > 0.0
 
 
 def detect_heel_raise(landmarks, prev_landmarks=None) -> bool:

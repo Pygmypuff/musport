@@ -103,28 +103,32 @@ def main():
                 # and person_crop is a view into `frame`.
                 display_crop = person_crop.copy()
 
-                detections[person["id"]] = pipeline.process(
-                    person["id"], display_crop
-                )
+                movements = pipeline.process(person["id"], display_crop, now)
+                skipped = movements is None
+                # Skipped people stay tracked (doing nothing), so they keep
+                # their facing history instead of being forgotten.
+                detections[person["id"]] = movements or []
                 movement_intensities[Movement.LEG_EXTENSION][person["id"]] = (
                     pipeline.leg_extension_intensity(person["id"])
                 )
                 movement_intensities[Movement.TORSO_TURN][person["id"]] = (
                     pipeline.torso_turn_intensity(person["id"])
                 )
-                crops[person["id"]] = display_crop
+                crops[person["id"]] = (display_crop, skipped)
 
             events = tracker.update(detections, now)
             update_sounds(sounds, tracker, events, movement_intensities)
 
             person_views = []
-            for person_id, crop in crops.items():
+            for person_id, (crop, skipped) in crops.items():
                 person = tracker.people[person_id]
-                person_views.append((
-                    person_id,
-                    crop,
-                    person.movements_in_progress(),
-                    person.recent_sequence(now),
+                person_views.append(ui.PersonView(
+                    person_id=person_id,
+                    crop=crop,
+                    movements=person.movements_in_progress(),
+                    sequence=person.recent_sequence(now),
+                    angle_from_camera=pipeline.angle_from_camera(person_id),
+                    skipped=skipped,
                 ))
 
             cv2.imshow(

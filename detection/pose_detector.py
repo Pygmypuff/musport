@@ -8,12 +8,13 @@ hand_detector.py.
 
 from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions
 
+from detection.facing import PersonFacing
 from detection.landmark_detector import LandmarkDetector
 from movements.detectors import (
     POSE_DETECTORS,
     leg_extension_intensity,
-    torso_shoulder_hip_width_ratio,
-    torso_turn_intensity,
+    shoulder_yaw_deg,
+    torso_turn_score,
 )
 from movements.mapping import Movement
 
@@ -33,37 +34,49 @@ class PoseDetector(LandmarkDetector):
         # Previous landmarks per person for temporal cues (neck turn, heel raise).
         self._prev_landmarks: dict[int, object] = {}
         self._leg_extension_intensities: dict[int, float] = {}
-        self._torso_turn_baselines: dict[int, float] = {}
         self._torso_turn_intensities: dict[int, float] = {}
+        # Which way each person sits; kept while they're out of view.
+        self._facing: dict[int, PersonFacing] = {}
 
-    def detect(self, person_id: int, person_crop) -> list[Movement]:
-        """Return yoga movements held in `person_crop`."""
+    def facing(self, person_id: int) -> PersonFacing:
+        if person_id not in self._facing:
+            self._facing[person_id] = PersonFacing()
+        return self._facing[person_id]
+
+    def detect(self, person_id: int, person_crop, now: float) -> list[Movement]:
+        """Return yoga movements held in `person_crop`.
+
+        Also updates the person's facing (see facing()), which the
+        gesture pipeline checks afterwards.
+        """
         result = self.find_landmarks(person_crop)
         if not result.pose_landmarks:
             self._prev_landmarks.pop(person_id, None)
             self._leg_extension_intensities.pop(person_id, None)
-            self._torso_turn_baselines.pop(person_id, None)
             self._torso_turn_intensities.pop(person_id, None)
             return []
 
         landmarks = result.pose_landmarks[0]
-        self._leg_extension_intensities[person_id] = leg_extension_intensity(landmarks)
-        current_width_ratio = torso_shoulder_hip_width_ratio(landmarks)
-        if current_width_ratio is not None:
-            baseline = self._torso_turn_baselines.get(person_id, current_width_ratio)
-            baseline = max(baseline, current_width_ratio)
-            self._torso_turn_baselines[person_id] = baseline
-        else:
-            baseline = self._torso_turn_baselines.get(person_id)
-        self._torso_turn_intensities[person_id] = torso_turn_intensity(
-            landmarks, baseline
+        # 3D landmarks in metres; only shoulder direction uses them so far.
+        world = (
+            result.pose_world_landmarks[0] if result.pose_world_landmarks else None
         )
+        yaw = shoulder_yaw_deg(landmarks, world)
+        facing = self.facing(person_id)
+        if yaw is not None:
+            facing.add(yaw, now)
+        resting_yaw = facing.resting_yaw
+
+        self._leg_extension_intensities[person_id] = leg_extension_intensity(landmarks)
+        self._torso_turn_intensities[person_id] = torso_turn_score(yaw, resting_yaw)
         prev = self._prev_landmarks.get(person_id)
 
         found: list[Movement] = []
         for movement, detector in POSE_DETECTORS:
             if movement is Movement.TORSO_TURN:
-                detected = detector(landmarks, prev, baseline)
+                detected = detector(
+                    landmarks, prev, world=world, resting_yaw=resting_yaw
+                )
             else:
                 detected = detector(landmarks, prev)
             if detected:
@@ -94,12 +107,12 @@ class PoseDetector(LandmarkDetector):
     def forget(self, person_id: int):
         self._prev_landmarks.pop(person_id, None)
         self._leg_extension_intensities.pop(person_id, None)
-        self._torso_turn_baselines.pop(person_id, None)
         self._torso_turn_intensities.pop(person_id, None)
+        self._facing.pop(person_id, None)
 
     def close(self):
         super().close()
         self._prev_landmarks.clear()
         self._leg_extension_intensities.clear()
-        self._torso_turn_baselines.clear()
         self._torso_turn_intensities.clear()
+        self._facing.clear()

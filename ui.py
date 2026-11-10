@@ -10,6 +10,8 @@ The display contains:
 main.py only calls render(); everything else here is a drawing helper.
 """
 
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 
@@ -45,6 +47,18 @@ LABEL_BAR = (20, 20, 20)
 MUTED_TEXT = (180, 180, 180)
 RECOGNIZED = (0, 255, 0)
 UNRECOGNIZED = (0, 165, 255)
+
+
+@dataclass
+class PersonView:
+    """Everything one person's tile shows."""
+
+    person_id: int
+    crop: np.ndarray
+    movements: list[Movement]
+    sequence: str | None = None  # name of a just-completed sequence
+    angle_from_camera: float | None = None  # resting direction, degrees
+    skipped: bool = False  # turned too far away to analyse
 
 
 def gesture_label(movements: list[Movement]) -> str:
@@ -116,21 +130,25 @@ def grid_layout(person_count):
     return rows, tile_width, tile_height
 
 
-def create_person_tile(
-    crop, person_id, movements, sequence, tile_width, tile_height
-):
+def create_person_tile(view: PersonView, tile_width, tile_height):
     """
     Create one tile for the person grid.
 
     The tile contains:
-        - Pose / gesture label at the top
-        - Cropped person image
-        - Person ID, plus the name of a just-completed sequence
+        - Pose / gesture label at the top (or "turned away" if skipped)
+        - Cropped person image, dimmed if skipped
+        - Person ID, which way they face, and a just-completed sequence
     """
     tile = blank(tile_width, tile_height)
 
-    label = gesture_label(movements)
-    color = RECOGNIZED if movements else UNRECOGNIZED
+    if view.skipped:
+        label = "Turned away - not analysed"
+        color = MUTED_TEXT
+        crop = (view.crop * 0.35).astype(np.uint8)
+    else:
+        label = gesture_label(view.movements)
+        color = RECOGNIZED if view.movements else UNRECOGNIZED
+        crop = view.crop
 
     # Leave room at the top for the gesture label and at the bottom for
     # the person ID. Both shrink with the tile so that a crowd, which
@@ -165,9 +183,11 @@ def create_person_tile(
         cv2.LINE_AA,
     )
 
-    footer = f"Person {person_id}"
-    if sequence:
-        footer += f"  -  {sequence}"
+    footer = f"Person {view.person_id}"
+    if view.angle_from_camera is not None:
+        footer += f"  -  {view.angle_from_camera:.0f} deg"
+    if view.sequence:
+        footer += f"  -  {view.sequence}"
 
     cv2.putText(
         tile,
@@ -175,7 +195,7 @@ def create_person_tile(
         (10, tile_height - 10),
         FONT,
         text_scale(footer, tile_width - 20, 0.45),
-        RECOGNIZED if sequence else MUTED_TEXT,
+        RECOGNIZED if view.sequence else MUTED_TEXT,
         1,
         cv2.LINE_AA,
     )
@@ -189,8 +209,7 @@ def create_person_tile(
 
 def create_person_grid(person_views):
     """
-    Build one tile per (person_id, crop, movements, sequence) and arrange them
-    into a grid.
+    Build one tile per PersonView and arrange them into a grid.
 
     Example with 4 people:
 
@@ -212,7 +231,7 @@ def create_person_grid(person_views):
 
     _, tile_width, tile_height = grid_layout(len(person_views))
 
-    for i, (person_id, crop, movements, sequence) in enumerate(person_views):
+    for i, view in enumerate(person_views):
         row = i // GRID_COLUMNS
         col = i % GRID_COLUMNS
 
@@ -220,7 +239,7 @@ def create_person_grid(person_views):
         y = GRID_GAP + row * (tile_height + GRID_GAP)
 
         grid[y:y + tile_height, x:x + tile_width] = create_person_tile(
-            crop, person_id, movements, sequence, tile_width, tile_height
+            view, tile_width, tile_height
         )
 
     return grid
@@ -229,8 +248,7 @@ def create_person_grid(person_views):
 def render(annotated_frame, person_views):
     """
     Build the full window image: webcam feed on the left, person grid
-    on the right. `person_views` is a list of
-    (person_id, crop, movements, sequence name or None).
+    on the right. `person_views` is a list of PersonView.
     """
     left_panel = blank(MAIN_WIDTH, DISPLAY_HEIGHT)
     paste_centered(
