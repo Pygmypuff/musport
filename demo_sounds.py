@@ -12,6 +12,7 @@ Keys match movements/mapping.py (B, 1–5, C). Press Q to quit.
 import pygame
 
 from audio.sound_engine import SoundEngine
+from movements.enabled import BACKGROUND_SOUND_ENABLED
 from movements.mapping import MOVEMENT_SOUNDS, Movement
 
 
@@ -31,11 +32,12 @@ def main():
     screen = pygame.display.set_mode((520, 320))
     pygame.display.set_caption("Musport — sound demo")
     clock = pygame.time.Clock()
-    engine = SoundEngine(enable_background=True)
+    engine = SoundEngine()
     key_to_movement = key_map()
 
     print("Musport sound demo")
-    print("Forest background is playing.")
+    if BACKGROUND_SOUND_ENABLED:
+        print("Forest background is playing.")
     for movement, spec in MOVEMENT_SOUNDS.items():
         print(f"  [{spec.keyboard}]  {spec.sound.name:8} ← {spec.label}")
     print("  [q]  quit")

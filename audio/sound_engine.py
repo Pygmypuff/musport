@@ -17,6 +17,7 @@ from random import choice
 
 import pygame
 
+from movements.enabled import BACKGROUND_SOUND_ENABLED
 from movements.mapping import ALL_SOUNDS, BACKGROUND_SOUND, Sound, sound_path
 
 # How long a held sound takes to fade fully in or out.
@@ -72,7 +73,8 @@ class SoundChannel:
 class SoundEngine:
     """Owns the mixer: background bed plus one SoundChannel per sound."""
 
-    def __init__(self, enable_background: bool = True):
+    def __init__(self, enable_background: bool = BACKGROUND_SOUND_ENABLED):
+        """`enable_background` defaults to the switch in movements/enabled.py."""
         if not pygame.get_init():
             pygame.init()
         if not pygame.mixer.get_init():

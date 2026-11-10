@@ -2,7 +2,7 @@
 
 Nature sounds that respond to yoga movements in a senior-living exercise class.
 
-The forest bed stays on in the background. When someone in frame does a mapped movement, the matching sound plays while they hold it (or plays once when they start it). Doing a sequence of movements in order can play a sound too.
+An optional forest bed loops in the background (`BACKGROUND_SOUND_ENABLED` in `movements/enabled.py`). When someone in frame does a mapped movement, the matching sound plays while they hold it (or plays once when they start it). Doing a sequence of movements in order can play a sound too.
 
 ## Movement → sound
 
@@ -76,7 +76,7 @@ detection/
 movements/
   mapping.py            The sounds, and which movement plays which
   sequences.py          Movement sequences and the sound each plays
-  enabled.py            On/off switch for each movement and sequence
+  enabled.py            On/off switches: each movement, sequence, background
   detectors.py          The geometry rule for each movement
   parameters.py         Thresholds those rules use, plus timing
 audio/
@@ -89,7 +89,7 @@ yolo26n-pose.pt         YOLO person model
 
 Where to make common changes:
 
-- **Test only some movements or sequences:** set them to `True`/`False` in `movements/enabled.py`. `main.py` prints what's on at startup.
+- **Test only some movements or sequences, or turn the background off:** set them to `True`/`False` in `movements/enabled.py`. `main.py` prints what's on at startup.
 - **Change a sound or add a movement:** `movements/mapping.py`, plus a rule in `movements/detectors.py`.
 - **Add or change a sequence:** `movements/sequences.py`.
 - **A movement triggers too often or too rarely:** `movements/parameters.py`.

@@ -29,8 +29,11 @@ ENABLED_MOVEMENTS: dict[Movement, bool] = {
     Movement.FIST: True,
 }
 
+# The forest bed that loops under everything (main.py and demo_sounds.py).
+BACKGROUND_SOUND_ENABLED = False
+
 ENABLED_SEQUENCES: dict[MovementSequence, bool] = {
-    SIDE_BEND_THEN_BEND_DOWN: True,
+    SIDE_BEND_THEN_BEND_DOWN: False,
     FIST_OPEN_PALM_FIST: True,
 }
 
@@ -47,7 +50,10 @@ def summary() -> str:
     """What's switched on, plus sequences that can't fire as configured."""
     on = [m.value for m in Movement if is_enabled(m)]
     off = [m.value for m in Movement if not is_enabled(m)]
-    lines = [f"Movements on: {', '.join(on) or 'none'}"]
+    lines = [
+        f"Background sound: {'on' if BACKGROUND_SOUND_ENABLED else 'off'}",
+        f"Movements on: {', '.join(on) or 'none'}",
+    ]
     if off:
         lines.append(f"Movements off: {', '.join(off)}")
 

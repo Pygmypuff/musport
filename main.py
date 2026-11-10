@@ -73,7 +73,7 @@ def main():
     detector = YoloPersonDetector(MODEL_PATH)
     pipeline = GesturePipeline()
     tracker = PersonTracker(on_person_removed=pipeline.forget)
-    sounds = SoundEngine(enable_background=True)
+    sounds = SoundEngine()
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
