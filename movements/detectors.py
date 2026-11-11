@@ -271,21 +271,42 @@ def side_bend_score(landmarks, world=None) -> float:
 
 
 def bend_down_score(landmarks, world=None) -> float:
-    """Rain — forward fold (torso leaning toward the camera/away, not sideways)."""
+    """Rain — forward fold.
+
+    Needs BOTH a forward torso lean (signed, shoulders toward the camera)
+    AND the head dropping toward shoulder level. Either alone is too noisy.
+    """
     pts = _geo(
-        landmarks,
-        world,
-        LM.LEFT_SHOULDER,
-        LM.RIGHT_SHOULDER,
-        LM.LEFT_HIP,
-        LM.RIGHT_HIP,
+        landmarks, world,
+        LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, LM.LEFT_HIP, LM.RIGHT_HIP,
     )
     if pts is None:
         return 0.0
-    forward, _ = _torso_lean_deg(*pts)
+    l_sh, r_sh, l_hip, r_hip = pts
+    sh, hip = _mid(l_sh, r_sh), _mid(l_hip, r_hip)
+
+    # Cue 1: signed forward lean. MediaPipe z is smaller toward the camera,
+    # so shoulders closer than hips => positive. Leaning back scores 0.
+    up = hip[1] - sh[1]
+    forward = math.degrees(math.atan2(hip[2] - sh[2], up))
     lo = P.BEND_DOWN_MIN_ANGLE_DEG
     hi = _p("BEND_DOWN_FULL_ANGLE_DEG", lo + 25.0)
-    return _ramp(forward, lo, hi)
+    lean = _ramp(forward, lo, hi)
+
+    # Cue 2: nose height relative to the shoulder line, in shoulder widths
+    # (image plane). Upright is clearly negative (nose above shoulders).
+    head = _points(landmarks, LM.NOSE, LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER)
+    if head is None:
+        return 0.0  # can't confirm the fold, so don't claim it
+    nose, i_l_sh, i_r_sh = head
+    drop = (nose[1] - _mid(i_l_sh, i_r_sh)[1]) / _width(i_l_sh, i_r_sh)
+    head_score = _ramp(
+        drop,
+        _p("BEND_DOWN_HEAD_DROP_MIN", -0.25),
+        _p("BEND_DOWN_HEAD_DROP_FULL", 0.15),
+    )
+
+    return min(lean, head_score)
 
 
 def shoulder_yaw_deg(landmarks, world) -> float | None:
@@ -342,7 +363,8 @@ def neck_turn_score(landmarks, world=None, prev_landmarks=None) -> float:
         nose, l_sh, r_sh = pts
         offset = abs(nose[0] - _mid(l_sh, r_sh)[0]) / _width(l_sh, r_sh)
         lo = P.NECK_TURN_NOSE_OFFSET
-        score = max(score, _ramp(offset, lo, lo * 2.0))
+        hi = _p("NECK_TURN_NOSE_OFFSET_FULL", lo * 2.0)
+        score = max(score, _ramp(offset, lo, hi))
 
     if prev_landmarks is not None:
         current = _points(

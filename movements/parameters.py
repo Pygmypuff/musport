@@ -23,7 +23,7 @@ SIDE_BEND_NO_ARM_FACTOR = 0.5
 
 # --- Birds: neck / head turn ----------------------------------------
 # |nose.x − shoulder_mid.x| / shoulder_width
-NECK_TURN_NOSE_OFFSET = 0.14
+NECK_TURN_NOSE_OFFSET = 0.28
 # Ear depth asymmetry |left_ear.z − right_ear.z|
 NECK_TURN_EAR_Z = 0.08
 # Temporal: nose.x jump across frames (fraction of shoulder width).
@@ -37,7 +37,7 @@ NECK_TURN_FULL_DEG = 40.0
 
 # --- Rain: bend down / forward fold ---------------------------------
 # Minimum angle of the hip-to-shoulder torso axis away from vertical.
-BEND_DOWN_MIN_ANGLE_DEG = 25.0
+BEND_DOWN_MIN_ANGLE_DEG = 30.0
 BEND_DOWN_FULL_ANGLE_DEG = BEND_DOWN_MIN_ANGLE_DEG + 25.0
 
 # --- Wind: leg extension --------------------------------------------

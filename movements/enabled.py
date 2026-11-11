@@ -22,11 +22,11 @@ ENABLED_MOVEMENTS: dict[Movement, bool] = {
     Movement.SIDE_BEND: True,
     Movement.NECK_TURN: True,
     Movement.BEND_DOWN: True,
-    Movement.LEG_EXTENSION: True,
+    Movement.LEG_EXTENSION: False,
     Movement.TORSO_TURN: True,
-    Movement.HEEL_RAISE: True, # Temporarily enabled for testing.
-    Movement.FINGER_EXTENSION: True,
-    Movement.FIST: True,
+    Movement.HEEL_RAISE: False, # Temporarily enabled for testing.
+    Movement.FINGER_EXTENSION: False,
+    Movement.FIST: False,
 }
 
 # The forest bed that loops under everything (main.py and demo_sounds.py).
