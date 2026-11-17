@@ -79,22 +79,18 @@ HEEL_RAISE_WINDOW_S = 0.6
 HEEL_RAISE_MIN_RANGE_DEG = 10.0
 HEEL_RAISE_FULL_RANGE_DEG = 30.0
 
-# --- Facing the camera: who gets analysed ---------------------------
+# --- Facing the camera: who controls the sounds ---------------------
 # A person's resting direction is the median of their shoulder direction
 # over this many seconds. Torso turns held longer than about half of
 # this start to count as the new resting direction and fade out.
 RESTING_DIRECTION_SECONDS = 30.0
-# People whose resting direction is turned further than this from the
-# camera are skipped: not run through the gesture pipeline at all.
-FACING_MAX_TURN_DEG = 40.0
-# ...and are let back in once they're this many degrees inside the limit
-# (stops someone right at the limit flickering in and out).
-FACING_HYSTERESIS_DEG = 5.0
-# Frames needed before a person's direction is known. Until then they're
-# analysed, but torso turn can't fire yet.
+# Frames needed before a person's direction is known. Until then they
+# can't control the sounds, and torso turn can't fire for them.
 FACING_MIN_SAMPLES = 5
-# How often a skipped person is re-measured, in case they've moved.
-FACING_RECHECK_SECONDS = 2.0
+# The person sitting straightest to the camera controls the sounds.
+# Control only moves to someone else if they're straighter by at least
+# this many degrees (stops two similar people swapping it back and forth).
+CONTROLLER_SWITCH_MARGIN_DEG = 10.0
 
 # --- Timing (seconds) -----------------------------------------------
 # A movement must be detected for this long before it counts as started.

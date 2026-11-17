@@ -1,22 +1,18 @@
 """
-Which way each person is sitting, and whether they face the camera enough
-to be analysed.
+Which way each person is sitting, and who controls the sounds.
 
 People sit in a semicircle, so some are turned partly or fully sideways
 to the camera, where pose landmarks are unreliable. Everyone is meant to
-be doing the same movement, so it's fine to only analyse the people who
-face the camera.
+be doing the same movement, so one person is enough: the one sitting
+straightest to the camera controls the sounds (ControllerPicker).
 
 A person's resting direction is the median of their shoulder direction
 over the last RESTING_DIRECTION_SECONDS. A torso twist lasting a few
-seconds barely moves it; the way their chair faces does. People whose
-resting direction is too far from the camera are skipped by the gesture
-pipeline, and re-measured every FACING_RECHECK_SECONDS in case they move.
+seconds barely moves it; the way their chair faces does.
 
 Thresholds live in movements/parameters.py.
 """
 
-import math
 import statistics
 from collections import deque
 
@@ -29,28 +25,17 @@ def _wrap180(angle: float) -> float:
 
 
 class PersonFacing:
-    """One person's resting direction and whether they're turned away."""
+    """One person's resting direction."""
 
     def __init__(self):
         # (time, shoulder direction in degrees; 0 = facing the camera)
         self._samples: deque[tuple[float, float]] = deque()
-        self.turned_away = False
-        self._next_check = -math.inf
 
     def add(self, yaw: float, now: float):
-        """Record this frame's shoulder direction and update the decision."""
+        """Record this frame's shoulder direction."""
         self._samples.append((now, yaw))
         while now - self._samples[0][0] > P.RESTING_DIRECTION_SECONDS:
             self._samples.popleft()
-
-        angle = self.angle_from_camera
-        if angle is None:
-            return
-        # Hysteresis so someone right at the limit doesn't flicker in and out.
-        if angle >= P.FACING_MAX_TURN_DEG:
-            self.turned_away = True
-        elif angle <= P.FACING_MAX_TURN_DEG - P.FACING_HYSTERESIS_DEG:
-            self.turned_away = False
 
     @property
     def resting_yaw(self) -> float | None:
@@ -69,10 +54,33 @@ class PersonFacing:
         resting = self.resting_yaw
         return None if resting is None else abs(resting)
 
-    def should_skip(self, now: float) -> bool:
-        """True while turned away, except when it's time to re-measure."""
-        return self.turned_away and now < self._next_check
 
-    def skipped(self, now: float):
-        """Call after deciding to skip someone; schedules their next re-check."""
-        self._next_check = now + P.FACING_RECHECK_SECONDS
+class ControllerPicker:
+    """Chooses the one person whose movements control the sounds.
+
+    That's whoever's resting direction is closest to facing the camera.
+    Control only moves to someone else when they're straighter by at
+    least CONTROLLER_SWITCH_MARGIN_DEG, or when the controller leaves, so
+    two people at similar angles don't keep swapping it.
+    """
+
+    def __init__(self):
+        self.current: int | None = None
+
+    def update(self, angles: dict[int, float | None]) -> int | None:
+        """`angles`: {person_id: angle from camera, or None if not known yet}
+        for everyone being tracked. Returns the controller's ID, or None if
+        nobody's direction is known yet."""
+        known = {pid: angle for pid, angle in angles.items() if angle is not None}
+        if not known:
+            self.current = None
+            return None
+
+        straightest = min(known, key=known.get)
+        if (
+            self.current not in known
+            or known[straightest]
+            < known[self.current] - P.CONTROLLER_SWITCH_MARGIN_DEG
+        ):
+            self.current = straightest
+        return self.current

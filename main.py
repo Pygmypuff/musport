@@ -2,7 +2,7 @@
 Musport — nature sounds for senior-living yoga movements.
 
 Webcam → YOLO people → pose/hand movements → per-person tracking
-→ forest sound bed.
+→ the person sitting straightest controls the forest sound bed.
 
 The window layout and drawing live in ui.py.
 
@@ -19,6 +19,7 @@ import cv2
 
 import ui
 from audio.sound_engine import SoundEngine
+from detection.facing import ControllerPicker
 from detection.gesture_pipeline import GesturePipeline
 from detection.person_tracker import Event, PersonTracker, SequenceEvent
 from detection.yolo_detector import YoloPersonDetector
@@ -34,29 +35,34 @@ def update_sounds(
     tracker: PersonTracker,
     events: list[Event],
     movement_intensities: dict[Movement, dict[int, float]],
+    controller_id: int | None,
 ):
     """
-    Continuous movements hold their sound while anyone is doing them.
-    One-shot movements and completed sequences trigger theirs once.
+    Only the controller's movements make sound; everyone else is ignored.
+    Their continuous movements hold their sound while they do them;
+    one-shot movements and completed sequences trigger theirs once.
     """
+    controller = tracker.people.get(controller_id)
+    active = controller.active if controller else set()
+
     held_sounds = {
         MOVEMENT_SOUNDS[m].sound
-        for m in tracker.active_movements()
+        for m in active
         if MOVEMENT_SOUNDS[m].playback == "continuous"
     }
-    volume_scales = {}
-    for movement, person_intensities in movement_intensities.items():
-        active_intensities = [
-            person_intensities.get(person_id, 0.0)
-            for person_id, person in tracker.people.items()
-            if movement in person.active
-        ]
-        volume_scales[MOVEMENT_SOUNDS[movement].sound] = max(
-            active_intensities, default=0.0
+    volume_scales = {
+        MOVEMENT_SOUNDS[movement].sound: (
+            person_intensities.get(controller_id, 0.0)
+            if movement in active
+            else 0.0
         )
+        for movement, person_intensities in movement_intensities.items()
+    }
     sounds.set_held(held_sounds, volume_scales=volume_scales)
 
     for event in events:
+        if event.person_id != controller_id:
+            continue
         if isinstance(event, SequenceEvent):
             sounds.trigger(event.sequence.sound)
         elif event.kind == "start":
@@ -73,6 +79,7 @@ def main():
     detector = YoloPersonDetector(MODEL_PATH)
     pipeline = GesturePipeline()
     tracker = PersonTracker(on_person_removed=pipeline.forget)
+    controller_picker = ControllerPicker()
     sounds = SoundEngine()
 
     cap = cv2.VideoCapture(0)
@@ -103,24 +110,28 @@ def main():
                 # and person_crop is a view into `frame`.
                 display_crop = person_crop.copy()
 
-                movements = pipeline.process(person["id"], display_crop, now)
-                skipped = movements is None
-                # Skipped people stay tracked (doing nothing), so they keep
-                # their facing history instead of being forgotten.
-                detections[person["id"]] = movements or []
+                detections[person["id"]] = pipeline.process(
+                    person["id"], display_crop, now
+                )
                 movement_intensities[Movement.LEG_EXTENSION][person["id"]] = (
                     pipeline.leg_extension_intensity(person["id"])
                 )
                 movement_intensities[Movement.TORSO_TURN][person["id"]] = (
                     pipeline.torso_turn_intensity(person["id"])
                 )
-                crops[person["id"]] = (display_crop, skipped)
+                crops[person["id"]] = display_crop
 
             events = tracker.update(detections, now)
-            update_sounds(sounds, tracker, events, movement_intensities)
+            controller_id = controller_picker.update({
+                person_id: pipeline.angle_from_camera(person_id)
+                for person_id in tracker.people
+            })
+            update_sounds(
+                sounds, tracker, events, movement_intensities, controller_id
+            )
 
             person_views = []
-            for person_id, (crop, skipped) in crops.items():
+            for person_id, crop in crops.items():
                 person = tracker.people[person_id]
                 person_views.append(ui.PersonView(
                     person_id=person_id,
@@ -128,7 +139,7 @@ def main():
                     movements=person.movements_in_progress(),
                     sequence=person.recent_sequence(now),
                     angle_from_camera=pipeline.angle_from_camera(person_id),
-                    skipped=skipped,
+                    controls_sound=person_id == controller_id,
                 ))
 
             cv2.imshow(

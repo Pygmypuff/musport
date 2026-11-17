@@ -16,7 +16,7 @@ An optional forest bed loops in the background (`BACKGROUND_SOUND_ENABLED` in `m
 | Leaves  | Heel raise / ankle rotation      | One-shot    | Ankle angle >120°, or ≥15° ankle rotation while the knee is extended >105° |
 | Cricket | Fist → open palm → fist           | One-shot    | One person makes each hand shape in order |
 
-- **Continuous:** plays while anyone is doing the movement, then fades out over 0.5s and stops once nobody is.
+- **Continuous:** plays while the person controlling the sounds is doing the movement, then fades out over 0.5s and stops once they stop.
 - **One-shot:** plays once when someone starts the movement.
 
 Sound pairing: `movements/mapping.py`. Detection thresholds: `movements/parameters.py`.
@@ -32,12 +32,14 @@ A sequence is a list of movements one person does in order, within a time window
 
 The person's tile shows the sequence name for a few seconds after they complete it.
 
-## Who gets analysed
+## Who controls the sounds
 
-People sit in a semicircle, so some face the camera side-on, where pose detection is unreliable. Everyone does the same movement, so only people facing the camera need analysing.
+People sit in a semicircle, so some face the camera side-on, where pose detection is unreliable. Everyone does the same movement, so **one person controls the sounds: whoever sits straightest to the camera.**
 
 - Each person's **resting direction** is which way their shoulders usually face: the median over the last 30s. A torso twist barely moves it; the way their chair faces does.
-- People whose resting direction is more than **40°** from the camera are skipped. They aren't run through the gesture pipeline, show as dimmed "Turned away" tiles, and are re-checked every 2s.
+- The person whose resting direction is closest to the camera controls the sounds. Their tile has a thick green border and "(sound)" in the footer.
+- Control only moves to someone at least **10°** straighter, or when the controller leaves, so it doesn't bounce between two people at similar angles.
+- Everyone else is still analysed and shown, but their movements and sequences make no sound.
 - Each tile's footer shows that person's angle from the camera, to help with chair placement.
 - Torso turn is measured from each person's own resting direction, so someone sitting at an angle isn't always "turning".
 
@@ -47,7 +49,7 @@ Settings: the "Facing the camera" section of `movements/parameters.py`.
 
 - **Per person:** each tracked person has their own movement history, so one person's side bend and another person's bend down don't add up to a sequence.
 - **No flicker:** a movement counts as started after it's been seen for 0.2s, and as ended after it's been missing for 0.4s. Both are set in `movements/parameters.py`.
-- **Room-wide sounds:** sounds aren't per person. Two people side-bending give one breeze.
+- **One controller:** only the person sitting straightest to the camera makes sounds (see "Who controls the sounds").
 - **Never doubled:** each sound has one channel. A one-shot or sequence sound that's already playing ignores new triggers and plays to the end.
 
 ## Run
@@ -84,7 +86,7 @@ detection/
   pose_detector.py      Body landmarks → movements
   hand_detector.py      Hand landmarks → finger extension
   person_tracker.py     Per-person history: movement start/end, sequences
-  facing.py             Which way each person sits; skips people turned away
+  facing.py             Which way each person sits; picks who controls sound
 movements/
   mapping.py            The sounds, and which movement plays which
   sequences.py          Movement sequences and the sound each plays

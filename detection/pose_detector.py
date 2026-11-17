@@ -46,8 +46,7 @@ class PoseDetector(LandmarkDetector):
     def detect(self, person_id: int, person_crop, now: float) -> list[Movement]:
         """Return yoga movements held in `person_crop`.
 
-        Also updates the person's facing (see facing()), which the
-        gesture pipeline checks afterwards.
+        Also updates which way the person faces (see facing()).
         """
         result = self.find_landmarks(person_crop)
         if not result.pose_landmarks:

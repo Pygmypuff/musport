@@ -47,6 +47,7 @@ LABEL_BAR = (20, 20, 20)
 MUTED_TEXT = (180, 180, 180)
 RECOGNIZED = (0, 255, 0)
 UNRECOGNIZED = (0, 165, 255)
+CONTROLLER_BORDER = (0, 255, 0)
 
 
 @dataclass
@@ -58,7 +59,7 @@ class PersonView:
     movements: list[Movement]
     sequence: str | None = None  # name of a just-completed sequence
     angle_from_camera: float | None = None  # resting direction, degrees
-    skipped: bool = False  # turned too far away to analyse
+    controls_sound: bool = False  # this person's movements make the sounds
 
 
 def gesture_label(movements: list[Movement]) -> str:
@@ -135,20 +136,16 @@ def create_person_tile(view: PersonView, tile_width, tile_height):
     Create one tile for the person grid.
 
     The tile contains:
-        - Pose / gesture label at the top (or "turned away" if skipped)
-        - Cropped person image, dimmed if skipped
+        - Pose / gesture label at the top
+        - Cropped person image
         - Person ID, which way they face, and a just-completed sequence
+        - A thick green border on the person who controls the sounds
     """
     tile = blank(tile_width, tile_height)
 
-    if view.skipped:
-        label = "Turned away - not analysed"
-        color = MUTED_TEXT
-        crop = (view.crop * 0.35).astype(np.uint8)
-    else:
-        label = gesture_label(view.movements)
-        color = RECOGNIZED if view.movements else UNRECOGNIZED
-        crop = view.crop
+    label = gesture_label(view.movements)
+    color = RECOGNIZED if view.movements else UNRECOGNIZED
+    crop = view.crop
 
     # Leave room at the top for the gesture label and at the bottom for
     # the person ID. Both shrink with the tile so that a crowd, which
@@ -184,6 +181,8 @@ def create_person_tile(view: PersonView, tile_width, tile_height):
     )
 
     footer = f"Person {view.person_id}"
+    if view.controls_sound:
+        footer += " (sound)"
     if view.angle_from_camera is not None:
         footer += f"  -  {view.angle_from_camera:.0f} deg"
     if view.sequence:
@@ -200,9 +199,14 @@ def create_person_tile(view: PersonView, tile_width, tile_height):
         cv2.LINE_AA,
     )
 
-    cv2.rectangle(
-        tile, (0, 0), (tile_width - 1, tile_height - 1), TILE_BORDER, 1
-    )
+    if view.controls_sound:
+        cv2.rectangle(
+            tile, (0, 0), (tile_width - 1, tile_height - 1), CONTROLLER_BORDER, 3
+        )
+    else:
+        cv2.rectangle(
+            tile, (0, 0), (tile_width - 1, tile_height - 1), TILE_BORDER, 1
+        )
 
     return tile
 
