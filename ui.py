@@ -10,6 +10,8 @@ The display contains:
 main.py only calls render(); everything else here is a drawing helper.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import cv2

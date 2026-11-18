@@ -20,8 +20,9 @@ import pygame
 from movements.enabled import BACKGROUND_SOUND_ENABLED
 from movements.mapping import ALL_SOUNDS, BACKGROUND_SOUND, Sound, sound_path
 
-# How long a held sound takes to fade fully in or out.
+# How long sounds take to fade in and out.
 FADE_SECONDS = 0.5
+CONTINUOUS_FADE_OUT_SECONDS = 1.5
 # Channel volume of a held sound once fully faded in.
 HELD_VOLUME = 0.8
 
@@ -36,29 +37,52 @@ class SoundChannel:
         self.volume = 0.0
         self.volume_scale = 1.0
         self._looping = False
+        self._oneshot = False
+        self._oneshot_elapsed = 0.0
+        self._oneshot_length = 0.0
 
     def trigger(self) -> bool:
         """Play once at full volume, unless this sound is already playing."""
         if self.channel.get_busy():
             return False
+        clip = choice(self.clips)
         self._looping = False
-        self.channel.set_volume(1.0)
-        self.channel.play(choice(self.clips))
+        self._oneshot = True
+        self._oneshot_elapsed = 0.0
+        self._oneshot_length = clip.get_length()
+        self.volume = 1.0
+        self.channel.set_volume(self.volume)
+        self.channel.play(clip)
         return True
 
     def update(self, dt: float):
         if self.held and not self.channel.get_busy():
             # Start the loop silent and fade it in.
             self._looping = True
+            self._oneshot = False
             self.volume = 0.0
             self.channel.set_volume(0.0)
             self.channel.play(choice(self.clips), loops=-1)
+
+        if self._oneshot:
+            self._oneshot_elapsed += dt
+            remaining = self._oneshot_length - self._oneshot_elapsed
+            if remaining <= FADE_SECONDS:
+                self.volume = max(0.0, remaining / FADE_SECONDS)
+                self.channel.set_volume(self.volume)
+
+            if remaining <= 0.0 or not self.channel.get_busy():
+                self.channel.stop()
+                self._oneshot = False
+                self.volume = 0.0
+            return
 
         if not self._looping:
             return
 
         target = HELD_VOLUME * self.volume_scale if self.held else 0.0
-        step = HELD_VOLUME * dt / FADE_SECONDS
+        fade_seconds = FADE_SECONDS if self.held else CONTINUOUS_FADE_OUT_SECONDS
+        step = HELD_VOLUME * dt / fade_seconds
         if self.volume < target:
             self.volume = min(target, self.volume + step)
         else:
@@ -124,4 +148,13 @@ class SoundEngine:
             channel.update(dt)
 
     def close(self):
+        fade_ms = int(FADE_SECONDS * 1000)
+        for channel in self._channels.values():
+            if channel.channel.get_busy():
+                channel.channel.fadeout(fade_ms)
+        if self._background_channel.get_busy():
+            self._background_channel.fadeout(fade_ms)
+
+        # Let the mixer finish the fade instead of pygame.quit() cutting it off.
+        time.sleep(FADE_SECONDS)
         pygame.mixer.stop()

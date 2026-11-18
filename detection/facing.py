@@ -13,6 +13,8 @@ seconds barely moves it; the way their chair faces does.
 Thresholds live in movements/parameters.py.
 """
 
+from __future__ import annotations
+
 import statistics
 from collections import deque
 

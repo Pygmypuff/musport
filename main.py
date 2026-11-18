@@ -12,6 +12,8 @@ Run:
 Press 'q' to quit. For keyboard-only sound testing: python demo_sounds.py
 """
 
+from __future__ import annotations
+
 import time
 from pathlib import Path
 
