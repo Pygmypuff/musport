@@ -19,14 +19,14 @@ from movements.sequences import (
 )
 
 ENABLED_MOVEMENTS: dict[Movement, bool] = {
-    Movement.SIDE_BEND: True,
+    Movement.SIDE_BEND: False,
     Movement.NECK_TURN: True,
-    Movement.BEND_DOWN: True,
-    Movement.LEG_EXTENSION: False,
-    Movement.TORSO_TURN: True,
-    Movement.HEEL_RAISE: False, # Temporarily enabled for testing.
-    Movement.FINGER_EXTENSION: False,
-    Movement.FIST: False,
+    Movement.BEND_DOWN: False,
+    Movement.LEG_EXTENSION: False, #Relabel to just "leg movement"
+    Movement.TORSO_TURN: False,
+    Movement.HEEL_RAISE: False, #Remove pls
+    Movement.FINGER_EXTENSION: True, #Done
+    Movement.FIST: True, #Done
 }
 
 # The forest bed that loops under everything (main.py and demo_sounds.py).

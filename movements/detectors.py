@@ -54,9 +54,9 @@ def _vis(lm) -> float:
     return float(getattr(lm, "visibility", 0.0) or 0.0)
 
 
-def _present(landmarks, *indices) -> bool:
-    return all(_vis(landmarks[i]) >= P.MIN_PRESENCE for i in indices)
-
+def _present(landmarks, *indices, floor=None) -> bool:
+    floor = P.MIN_PRESENCE if floor is None else floor
+    return all(_vis(landmarks[i]) >= floor for i in indices)
 
 def _pt(landmarks, index) -> tuple[float, float, float]:
     lm = landmarks[index]
@@ -70,14 +70,13 @@ def _points(landmarks, *indices):
     return [_pt(landmarks, i) for i in indices]
 
 
-def _geo(landmarks, world, *indices):
+def _geo(landmarks, world, *indices, floor=None):
     """Like _points, but coordinates come from `world` when available.
 
-    Presence is always checked on the normalised `landmarks` (they carry the
-    reliable confidence values); geometry is read from the metric world
-    landmarks, which give undistorted angles.
+    Presence is always checked on the normalised `landmarks`; geometry is
+    read from the metric world landmarks, which give undistorted angles.
     """
-    if not _present(landmarks, *indices):
+    if not _present(landmarks, *indices, floor=floor):
         return None
     src = world if world is not None else landmarks
     return [_pt(src, i) for i in indices]
@@ -205,11 +204,13 @@ class LandmarkSmoother:
 
     def __init__(self, min_cutoff: float = 1.5, beta: float = 3.0):
         self.min_cutoff = min_cutoff
-        self.beta = beta
+        self.beta = beta    
         self._filters: dict[int, tuple[_OneEuro, _OneEuro, _OneEuro]] = {}
+        self._ankle_ok = {"L": float("-inf"), "R": float("-inf")}
 
     def reset(self) -> None:
         self._filters.clear()
+        self._ankle_ok = {"L": float("-inf"), "R": float("-inf")}
 
     def __call__(self, landmarks, t: float) -> list[SmoothedLandmark]:
         out = []
@@ -384,26 +385,44 @@ def neck_turn_score(landmarks, world=None, prev_landmarks=None) -> float:
     return score
 
 
-def _max_leg_extension_angle(landmarks, world=None) -> float | None:
-    """Largest 3D knee angle (hip-knee-ankle) across both legs, in degrees."""
-    angles = []
-    for hip_i, knee_i, ankle_i in (
-        (LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
-        (LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
-    ):
-        pts = _geo(landmarks, world, hip_i, knee_i, ankle_i)
-        if pts is None:
-            continue
-        angles.append(_knee_angle(*pts))
-    return max(angles) if angles else None
+LEG_JOINTS = (
+    (LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
+    (LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
+)
+
+
+def _shin_lift_deg(knee, ankle) -> float:
+    """Shin angle from straight down: 0 = foot under knee, 90 = horizontal."""
+    dx, dy, dz = (ankle[i] - knee[i] for i in range(3))
+    return math.degrees(math.atan2(math.hypot(dx, dz), dy))
+
+
+def _single_leg_extension(landmarks, world, hip_i, knee_i, ankle_i) -> float | None:
+    """0–1 extension of ONE leg, or None if it can't be measured."""
+    floor = _p("LEG_MIN_PRESENCE", P.MIN_PRESENCE)
+    pts = _geo(landmarks, world, hip_i, knee_i, ankle_i, floor=floor)
+    if pts is not None:
+        return _ramp(
+            _knee_angle(*pts), P.LEG_EXT_MIN_KNEE_ANGLE, P.LEG_EXT_FULL_VOLUME_ANGLE
+        )
+    # Hip hidden (common when seated): fall back to how far the shin has lifted.
+    pts = _geo(landmarks, world, knee_i, ankle_i, floor=floor)
+    if pts is None:
+        return None
+    return _ramp(
+        _shin_lift_deg(*pts),
+        _p("LEG_SHIN_LIFT_MIN_DEG", 35.0),
+        _p("LEG_SHIN_LIFT_FULL_DEG", 70.0),
+    )
 
 
 def leg_extension_intensity(landmarks, world=None) -> float:
-    """0–1 Wind volume scale based on the most-extended knee."""
-    angle = _max_leg_extension_angle(landmarks, world)
-    if angle is None:
-        return 0.0
-    return _ramp(angle, P.LEG_EXT_MIN_KNEE_ANGLE, P.LEG_EXT_FULL_VOLUME_ANGLE)
+    """0–1 Wind volume: the best of the two legs, so one raised leg is enough."""
+    scores = [
+        s for s in (_single_leg_extension(landmarks, world, *leg) for leg in LEG_JOINTS)
+        if s is not None
+    ]
+    return max(scores, default=0.0)
 
 
 leg_extension_score = leg_extension_intensity
@@ -435,27 +454,35 @@ class PoseScorer:
 
     def _heel_raise_score(self, landmarks, world, t: float) -> float:
         window = _p("HEEL_RAISE_WINDOW_S")
+        grace = _p("HEEL_RAISE_GRACE_S", 0.4)
+        floor = _p("LEG_MIN_PRESENCE", P.MIN_PRESENCE)
         best = 0.0
         legs = (
-            ("L", LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE, LM.LEFT_FOOT_INDEX),
-            ("R", LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE, LM.RIGHT_FOOT_INDEX),
+            ("L", *LEG_JOINTS[0], LM.LEFT_FOOT_INDEX),
+            ("R", *LEG_JOINTS[1], LM.RIGHT_FOOT_INDEX),
         )
         for side, hip_i, knee_i, ankle_i, toe_i in legs:
             q = self._ankle[side]
-            pts = _geo(landmarks, world, hip_i, knee_i, ankle_i, toe_i)
-            # Leg must be extended out, as before; otherwise forget this side.
-            if pts is None or _knee_angle(*pts[:3]) <= P.LEG_EXT_MIN_KNEE_ANGLE:
-                q.clear()
-                continue
-            hip, knee, ankle, toe = pts
-            flexion = _angle_deg(
-                _vec(ankle, knee, dims=3), _vec(ankle, toe, dims=3)
-            )
-            q.append((t, flexion))
+            ext = _single_leg_extension(landmarks, world, hip_i, knee_i, ankle_i)
+            pts = _geo(landmarks, world, knee_i, ankle_i, toe_i, floor=floor)
+            if ext is not None and ext > 0.0 and pts is not None:
+                knee, ankle, toe = pts
+                q.append(
+                    (t, _angle_deg(_vec(ankle, knee, dims=3), _vec(ankle, toe, dims=3)))
+                )
+                self._ankle_ok[side] = t
+            elif t - self._ankle_ok[side] > grace:
+                q.clear()  # only forget after a sustained gap, not one bad frame
+
             while q and t - q[0][0] > window:
                 q.popleft()
-            angles = [a for _, a in q]
-            rng = max(angles) - min(angles)
+            if len(q) < 3:
+                continue
+
+            # Trim the extremes so one jittery toe frame doesn't count as motion.
+            angles = sorted(a for _, a in q)
+            k = int(len(angles) * 0.1)
+            rng = angles[-1 - k] - angles[k]
             best = max(
                 best,
                 _ramp(rng, _p("HEEL_RAISE_MIN_RANGE_DEG"), _p("HEEL_RAISE_FULL_RANGE_DEG")),
