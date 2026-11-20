@@ -11,9 +11,8 @@ An optional forest bed loops in the background (`BACKGROUND_SOUND_ENABLED` in `m
 | Breeze  | Side bend (one hand up)          | Continuous  | Exactly one wrist above its shoulder + shoulder elevation difference |
 | Birds   | Neck movements / head turn       | One-shot    | Nose off shoulder midline, ear depth, or vertical head movement relative to shoulders |
 | Rain    | Bend down                        | Continuous  | Torso axis leans at least 25° from vertical |
-| Wind    | Leg extension                    | Continuous  | Knee angle above 105°; volume rises linearly to full at 180° |
+| Wind    | Leg movement                    | Continuous  | Knee angle above 105°; volume rises linearly to full at 180° |
 | Water   | Torso turn                       | Continuous  | Shoulders turned >20° from the person's resting direction (3D shoulder depth); volume scales up to 45° |
-| Leaves  | Heel raise / ankle rotation      | One-shot    | Ankle angle >120°, or ≥15° ankle rotation while the knee is extended >105° |
 | Cricket | Fist → open palm → fist           | One-shot    | One person makes each hand shape in order |
 
 - **Continuous:** plays while the person controlling the sounds is doing the movement, then fades out over 0.5s and stops once they stop.
@@ -112,7 +111,7 @@ Where to make common changes:
 
 ## Tuning
 
-If a move rarely triggers or false-triggers, edit the constants in `movements/parameters.py` (each is commented). Sit far enough back so hips and feet stay in the YOLO crop — leg extension and heel raise need visible legs.
+If a move rarely triggers or false-triggers, edit the constants in `movements/parameters.py` (each is commented). Sit far enough back so hips and feet stay in the YOLO crop — leg movement needs visible legs.
 
 ## Next steps
 

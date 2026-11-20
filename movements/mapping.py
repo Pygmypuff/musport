@@ -19,9 +19,8 @@ class Movement(str, Enum):
     SIDE_BEND = "side_bend"  # one wrist above shoulder, shoulders uneven
     NECK_TURN = "neck_turn"  # head / neck rotation
     BEND_DOWN = "bend_down"  # forward fold
-    LEG_EXTENSION = "leg_extension"
+    LEG_MOVEMENT = "leg_movement"
     TORSO_TURN = "torso_turn"  # shoulders turned away from the camera
-    HEEL_RAISE = "heel_raise"  # seated heel raise
     FINGER_EXTENSION = "finger_extension"
     FIST = "fist"
 
@@ -82,8 +81,8 @@ MOVEMENT_SOUNDS: dict[Movement, SoundSpec] = {
         playback="continuous",
         keyboard="2",
     ),
-    Movement.LEG_EXTENSION: SoundSpec(
-        label="Leg extension",
+    Movement.LEG_MOVEMENT: SoundSpec(
+        label="Leg movement",
         sound=WIND,
         playback="continuous",
         keyboard="3",
@@ -93,12 +92,6 @@ MOVEMENT_SOUNDS: dict[Movement, SoundSpec] = {
         sound=WATER,
         playback="continuous",
         keyboard="4",
-    ),
-    Movement.HEEL_RAISE: SoundSpec(
-        label="Ankle Raise/Rotation",
-        sound=LEAVES,
-        playback="oneshot",
-        keyboard="5",
     ),
     Movement.FINGER_EXTENSION: SoundSpec(
         label="Open palm",

@@ -25,6 +25,7 @@ FADE_SECONDS = 0.5
 CONTINUOUS_FADE_OUT_SECONDS = 1.5
 # Channel volume of a held sound once fully faded in.
 HELD_VOLUME = 0.8
+CLIP_VOLUME = 0.96
 
 
 class SoundChannel:
@@ -123,7 +124,7 @@ class SoundEngine:
         if not path.exists():
             raise FileNotFoundError(f"Missing sound file: {path}")
         sound = pygame.mixer.Sound(str(path))
-        sound.set_volume(0.8)
+        sound.set_volume(CLIP_VOLUME)
         return sound
 
     def set_held(

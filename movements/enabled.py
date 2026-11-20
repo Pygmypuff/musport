@@ -19,18 +19,17 @@ from movements.sequences import (
 )
 
 ENABLED_MOVEMENTS: dict[Movement, bool] = {
-    Movement.SIDE_BEND: False,
+    Movement.SIDE_BEND: True,
     Movement.NECK_TURN: True,
-    Movement.BEND_DOWN: False,
-    Movement.LEG_EXTENSION: False, #Relabel to just "leg movement"
-    Movement.TORSO_TURN: False,
-    Movement.HEEL_RAISE: False, #Remove pls
+    Movement.BEND_DOWN: True,
+    Movement.LEG_MOVEMENT: True,
+    Movement.TORSO_TURN: True,
     Movement.FINGER_EXTENSION: True, #Done
     Movement.FIST: True, #Done
 }
 
 # The forest bed that loops under everything (main.py and demo_sounds.py).
-BACKGROUND_SOUND_ENABLED = False
+BACKGROUND_SOUND_ENABLED = True
 
 ENABLED_SEQUENCES: dict[MovementSequence, bool] = {
     SIDE_BEND_THEN_BEND_DOWN: False,

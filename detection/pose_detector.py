@@ -12,7 +12,7 @@ from detection.facing import PersonFacing
 from detection.landmark_detector import LandmarkDetector
 from movements.detectors import (
     POSE_DETECTORS,
-    leg_extension_intensity,
+    leg_movement_intensity,
     shoulder_yaw_deg,
     torso_turn_score,
 )
@@ -31,9 +31,9 @@ class PoseDetector(LandmarkDetector):
 
     def __init__(self):
         super().__init__(PoseLandmarker, PoseLandmarkerOptions, num_poses=1)
-        # Previous landmarks per person for temporal cues (neck turn, heel raise).
+        # Previous landmarks per person for temporal cues (neck turn).
         self._prev_landmarks: dict[int, object] = {}
-        self._leg_extension_intensities: dict[int, float] = {}
+        self._leg_movement_intensities: dict[int, float] = {}
         self._torso_turn_intensities: dict[int, float] = {}
         # Which way each person sits; kept while they're out of view.
         self._facing: dict[int, PersonFacing] = {}
@@ -51,7 +51,7 @@ class PoseDetector(LandmarkDetector):
         result = self.find_landmarks(person_crop)
         if not result.pose_landmarks:
             self._prev_landmarks.pop(person_id, None)
-            self._leg_extension_intensities.pop(person_id, None)
+            self._leg_movement_intensities.pop(person_id, None)
             self._torso_turn_intensities.pop(person_id, None)
             return []
 
@@ -66,7 +66,7 @@ class PoseDetector(LandmarkDetector):
             facing.add(yaw, now)
         resting_yaw = facing.resting_yaw
 
-        self._leg_extension_intensities[person_id] = leg_extension_intensity(landmarks)
+        self._leg_movement_intensities[person_id] = leg_movement_intensity(landmarks)
         self._torso_turn_intensities[person_id] = torso_turn_score(yaw, resting_yaw)
         prev = self._prev_landmarks.get(person_id)
 
@@ -95,9 +95,9 @@ class PoseDetector(LandmarkDetector):
         self._prev_landmarks[person_id] = landmarks
         return found
 
-    def leg_extension_intensity(self, person_id: int) -> float:
+    def leg_movement_intensity(self, person_id: int) -> float:
         """Current 0–1 Wind volume scale for a tracked person."""
-        return self._leg_extension_intensities.get(person_id, 0.0)
+        return self._leg_movement_intensities.get(person_id, 0.0)
 
     def torso_turn_intensity(self, person_id: int) -> float:
         """Current 0–1 Water volume scale for a tracked person."""
@@ -105,13 +105,13 @@ class PoseDetector(LandmarkDetector):
 
     def forget(self, person_id: int):
         self._prev_landmarks.pop(person_id, None)
-        self._leg_extension_intensities.pop(person_id, None)
+        self._leg_movement_intensities.pop(person_id, None)
         self._torso_turn_intensities.pop(person_id, None)
         self._facing.pop(person_id, None)
 
     def close(self):
         super().close()
         self._prev_landmarks.clear()
-        self._leg_extension_intensities.clear()
+        self._leg_movement_intensities.clear()
         self._torso_turn_intensities.clear()
         self._facing.clear()

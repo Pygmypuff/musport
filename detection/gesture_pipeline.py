@@ -45,8 +45,8 @@ class GesturePipeline:
         """How far this person's resting direction is from the camera."""
         return self.pose_detector.facing(person_id).angle_from_camera
 
-    def leg_extension_intensity(self, person_id: int) -> float:
-        return self.pose_detector.leg_extension_intensity(person_id)
+    def leg_movement_intensity(self, person_id: int) -> float:
+        return self.pose_detector.leg_movement_intensity(person_id)
 
     def torso_turn_intensity(self, person_id: int) -> float:
         return self.pose_detector.torso_turn_intensity(person_id)

@@ -397,13 +397,13 @@ def _shin_lift_deg(knee, ankle) -> float:
     return math.degrees(math.atan2(math.hypot(dx, dz), dy))
 
 
-def _single_leg_extension(landmarks, world, hip_i, knee_i, ankle_i) -> float | None:
-    """0–1 extension of ONE leg, or None if it can't be measured."""
+def _single_leg_movement(landmarks, world, hip_i, knee_i, ankle_i) -> float | None:
+    """0–1 movement of ONE leg, or None if it can't be measured."""
     floor = _p("LEG_MIN_PRESENCE", P.MIN_PRESENCE)
     pts = _geo(landmarks, world, hip_i, knee_i, ankle_i, floor=floor)
     if pts is not None:
         return _ramp(
-            _knee_angle(*pts), P.LEG_EXT_MIN_KNEE_ANGLE, P.LEG_EXT_FULL_VOLUME_ANGLE
+            _knee_angle(*pts), P.LEG_MOVEMENT_MIN_KNEE_ANGLE, P.LEG_MOVEMENT_FULL_VOLUME_ANGLE
         )
     # Hip hidden (common when seated): fall back to how far the shin has lifted.
     pts = _geo(landmarks, world, knee_i, ankle_i, floor=floor)
@@ -416,78 +416,35 @@ def _single_leg_extension(landmarks, world, hip_i, knee_i, ankle_i) -> float | N
     )
 
 
-def leg_extension_intensity(landmarks, world=None) -> float:
+def leg_movement_intensity(landmarks, world=None) -> float:
     """0–1 Wind volume: the best of the two legs, so one raised leg is enough."""
     scores = [
-        s for s in (_single_leg_extension(landmarks, world, *leg) for leg in LEG_JOINTS)
+        s for s in (_single_leg_movement(landmarks, world, *leg) for leg in LEG_JOINTS)
         if s is not None
     ]
     return max(scores, default=0.0)
 
 
-leg_extension_score = leg_extension_intensity
+leg_movement_score = leg_movement_intensity
 
 
-# --- Stateful scorer + heel raise ------------------------------------
+# --- Stateful scorer ------------------------------------------------
 
 
 class PoseScorer:
     """Smooths landmarks and produces a 0–1 score per pose Movement.
 
-    Stateful because (a) landmark smoothing needs history and (b) heel
-    raise measures how much the ankle angle changes over a short window,
-    which is independent of frame rate (unlike a frame-to-frame delta).
+    Stateful pose landmark smoothing keeps scores stable.
     """
 
     def __init__(self, smooth: bool = True):
         self._pose_filter = LandmarkSmoother() if smooth else None
         self._world_filter = LandmarkSmoother() if smooth else None
-        # side -> deque[(t, ankle_flexion_deg)]
-        self._ankle: dict[str, deque] = {"L": deque(), "R": deque()}
 
     def reset(self) -> None:
         if self._pose_filter:
             self._pose_filter.reset()
             self._world_filter.reset()
-        for q in self._ankle.values():
-            q.clear()
-
-    def _heel_raise_score(self, landmarks, world, t: float) -> float:
-        window = _p("HEEL_RAISE_WINDOW_S")
-        grace = _p("HEEL_RAISE_GRACE_S", 0.4)
-        floor = _p("LEG_MIN_PRESENCE", P.MIN_PRESENCE)
-        best = 0.0
-        legs = (
-            ("L", *LEG_JOINTS[0], LM.LEFT_FOOT_INDEX),
-            ("R", *LEG_JOINTS[1], LM.RIGHT_FOOT_INDEX),
-        )
-        for side, hip_i, knee_i, ankle_i, toe_i in legs:
-            q = self._ankle[side]
-            ext = _single_leg_extension(landmarks, world, hip_i, knee_i, ankle_i)
-            pts = _geo(landmarks, world, knee_i, ankle_i, toe_i, floor=floor)
-            if ext is not None and ext > 0.0 and pts is not None:
-                knee, ankle, toe = pts
-                q.append(
-                    (t, _angle_deg(_vec(ankle, knee, dims=3), _vec(ankle, toe, dims=3)))
-                )
-                self._ankle_ok[side] = t
-            elif t - self._ankle_ok[side] > grace:
-                q.clear()  # only forget after a sustained gap, not one bad frame
-
-            while q and t - q[0][0] > window:
-                q.popleft()
-            if len(q) < 3:
-                continue
-
-            # Trim the extremes so one jittery toe frame doesn't count as motion.
-            angles = sorted(a for _, a in q)
-            k = int(len(angles) * 0.1)
-            rng = angles[-1 - k] - angles[k]
-            best = max(
-                best,
-                _ramp(rng, _p("HEEL_RAISE_MIN_RANGE_DEG"), _p("HEEL_RAISE_FULL_RANGE_DEG")),
-            )
-        return best
 
     def score(self, landmarks, world=None, t: float | None = None) -> dict:
         """Return {Movement: 0–1}. `landmarks=None` (no person) resets state."""
@@ -506,8 +463,7 @@ class PoseScorer:
                 shoulder_yaw_deg(landmarks, world), resting_yaw=0.0
             ),
             Movement.NECK_TURN: neck_turn_score(landmarks, world),
-            Movement.HEEL_RAISE: self._heel_raise_score(landmarks, world, t),
-            Movement.LEG_EXTENSION: leg_extension_score(landmarks, world),
+            Movement.LEG_MOVEMENT: leg_movement_score(landmarks, world),
         }
 
 
@@ -519,14 +475,12 @@ RANKING: list[Movement] = [
     Movement.SIDE_BEND,
     Movement.TORSO_TURN,
     Movement.NECK_TURN,
-    Movement.HEEL_RAISE,
-    Movement.LEG_EXTENSION,
+    Movement.LEG_MOVEMENT,
 ]
 
 # A movement on the left silences the movements on the right. A bigger
 # movement mechanically drags smaller ones along (turning the torso carries
-# the head), so the smaller ones are treated as side effects. Heel raise and
-# leg extension are deliberately NOT suppressed: they layer with the rest.
+# the head), so the smaller ones are treated as side effects. # leg movement is deliberately NOT suppressed: they layer with the rest.
 SUPPRESSES: dict[Movement, set[Movement]] = {
     Movement.BEND_DOWN: {Movement.SIDE_BEND, Movement.TORSO_TURN, Movement.NECK_TURN},
     Movement.SIDE_BEND: {Movement.TORSO_TURN, Movement.NECK_TURN},
@@ -696,8 +650,8 @@ def detect_bend_down(landmarks, prev_landmarks=None, world=None) -> bool:
     return bend_down_score(landmarks, world) > 0.0
 
 
-def detect_leg_extension(landmarks, prev_landmarks=None, world=None) -> bool:
-    return leg_extension_score(landmarks, world) > 0.0
+def detect_leg_movement(landmarks, prev_landmarks=None, world=None) -> bool:
+    return leg_movement_score(landmarks, world) > 0.0
 
 
 def detect_torso_turn(
@@ -706,43 +660,11 @@ def detect_torso_turn(
     return torso_turn_score(shoulder_yaw_deg(landmarks, world), resting_yaw) > 0.0
 
 
-def detect_heel_raise(landmarks, prev_landmarks=None) -> bool:
-    """Leaves — ankle moving while its leg is extended (frame-to-frame version).
-
-    Superseded by PoseScorer's windowed ankle-flexion score, which doesn't
-    depend on frame rate. Kept only for the legacy API.
-    """
-    if prev_landmarks is None:
-        return False
-    for hip_i, knee_i, ankle_i, toe_i in (
-        (LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE, LM.LEFT_FOOT_INDEX),
-        (LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE, LM.RIGHT_FOOT_INDEX),
-    ):
-        current = _points(landmarks, hip_i, knee_i, ankle_i, toe_i)
-        previous = _points(prev_landmarks, ankle_i, toe_i)
-        if current is None or previous is None:
-            continue
-        hip, knee, ankle, toe = current
-        previous_ankle, previous_toe = previous
-        if _knee_angle(hip, knee, ankle) <= P.LEG_EXT_MIN_KNEE_ANGLE + 1e-6:
-            continue
-        foot = _vec(ankle, toe, dims=3)
-        previous_foot = _vec(previous_ankle, previous_toe, dims=3)
-        shin_length = max(_dist3(knee, ankle), 1e-3)
-        movement = (
-            math.hypot(*(c - p for c, p in zip(foot, previous_foot))) / shin_length
-        )
-        if movement >= P.HEEL_RAISE_ANKLE_MOVEMENT - 1e-6:
-            return True
-    return False
-
-
 # Legacy pose detectors, in priority order. Prefer MovementPipeline.
 POSE_DETECTORS: list[tuple[Movement, Callable]] = [
     (Movement.BEND_DOWN, detect_bend_down),
     (Movement.SIDE_BEND, detect_side_bend),
     (Movement.TORSO_TURN, detect_torso_turn),
     (Movement.NECK_TURN, detect_neck_turn),
-    (Movement.HEEL_RAISE, detect_heel_raise),
-    (Movement.LEG_EXTENSION, detect_leg_extension),
+    (Movement.LEG_MOVEMENT, detect_leg_movement),
 ]

@@ -98,7 +98,7 @@ def main():
             detections = {}
             crops = {}
             movement_intensities = {
-                Movement.LEG_EXTENSION: {},
+                Movement.LEG_MOVEMENT: {},
                 Movement.TORSO_TURN: {},
             }
 
@@ -115,8 +115,8 @@ def main():
                 detections[person["id"]] = pipeline.process(
                     person["id"], display_crop, now
                 )
-                movement_intensities[Movement.LEG_EXTENSION][person["id"]] = (
-                    pipeline.leg_extension_intensity(person["id"])
+                movement_intensities[Movement.LEG_MOVEMENT][person["id"]] = (
+                    pipeline.leg_movement_intensity(person["id"])
                 )
                 movement_intensities[Movement.TORSO_TURN][person["id"]] = (
                     pipeline.torso_turn_intensity(person["id"])

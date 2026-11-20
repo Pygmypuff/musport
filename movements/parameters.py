@@ -40,11 +40,11 @@ NECK_TURN_FULL_DEG = 40.0
 BEND_DOWN_MIN_ANGLE_DEG = 30.0
 BEND_DOWN_FULL_ANGLE_DEG = BEND_DOWN_MIN_ANGLE_DEG + 25.0
 
-# --- Wind: leg extension --------------------------------------------
+# --- Wind: leg movement --------------------------------------------
 # Knee angle (hip–knee–ankle) must exceed this to count as extended.
-LEG_EXT_MIN_KNEE_ANGLE = 105.0
+LEG_MOVEMENT_MIN_KNEE_ANGLE = 105.0
 # Wind reaches full volume at a straight-knee angle.
-LEG_EXT_FULL_VOLUME_ANGLE = 180.0
+LEG_MOVEMENT_FULL_VOLUME_ANGLE = 180.0
 
 # --- Water: torso turn ----------------------------------------------
 # How far the shoulders have turned from the person's resting direction
@@ -52,15 +52,6 @@ LEG_EXT_FULL_VOLUME_ANGLE = 180.0
 TORSO_TURN_MIN_ANGLE_DEG = 20.0
 # ...and reaches full volume here (a full seated twist).
 TORSO_TURN_FULL_VOLUME_ANGLE_DEG = 45.0
-
-# --- Leaves: ankle angle / rotation ---------------------------------
-# Ankle angle between ankle→knee and ankle→foot_index.
-HEEL_RAISE_ANKLE_ANGLE_DEG = 120.0
-# Ankle angle change that counts as rotation while that leg is extended.
-HEEL_RAISE_ANKLE_ROTATION_DEG = 15.0
-# Toe movement relative to the ankle between frames, as a fraction of
-# shin length. Starting guess; tune against real footage.
-HEEL_RAISE_ANKLE_MOVEMENT = 0.10
 
 # --- Cricket: fist / open-palm sequence -----------------------------
 # tip→wrist distance must exceed pip→wrist by this factor.
@@ -72,12 +63,6 @@ FIST_TIP_RATIO_MAX = 0.95
 # Revised scorer thresholds for hand posture.
 FINGER_EXT_MIN_PIP_ANGLE_DEG = 150.0
 FIST_MAX_PIP_ANGLE_DEG = 100.0
-
-# --- Heel raise / ankle motion ---------------------------------------
-# Window over which the ankle flexion range is measured.
-HEEL_RAISE_WINDOW_S = 0.6
-HEEL_RAISE_MIN_RANGE_DEG = 10.0
-HEEL_RAISE_FULL_RANGE_DEG = 30.0
 
 # --- Facing the camera: who controls the sounds ---------------------
 # A person's resting direction is the median of their shoulder direction
