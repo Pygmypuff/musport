@@ -81,17 +81,6 @@ class PoseDetector(LandmarkDetector):
             if detected:
                 found.append(movement)
 
-        # Side bend tilts the shoulders/head — don't also fire twist/neck.
-        if Movement.SIDE_BEND in found: 
-            found = [
-                m
-                for m in found
-                if m not in (Movement.NECK_TURN, Movement.TORSO_TURN)
-            ]
-        # Deep forward fold often looks like a short torso; prefer rain over water.
-        if Movement.BEND_DOWN in found and Movement.TORSO_TURN in found:
-            found = [m for m in found if m != Movement.TORSO_TURN]
-
         self._prev_landmarks[person_id] = landmarks
         return found
 

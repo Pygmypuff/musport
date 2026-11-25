@@ -20,9 +20,10 @@ from dataclasses import dataclass
 from typing import Literal, Union
 
 from movements import parameters as P
-from movements.enabled import is_enabled, sequence_enabled
+from movements.enabled import is_enabled, is_shown, sequence_enabled
 from movements.mapping import Movement
 from movements.sequences import SEQUENCES, MovementSequence, is_completed
+from movements.priorities import apply_priorities
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ class PersonState:
     def update(self, detected: set[Movement], now: float) -> list[Event]:
         """Feed this frame's raw detections; return the resulting events."""
         events: list[Event] = []
+        detected = apply_priorities(detected, self.active)
 
         # Enum order keeps same-frame starts in a stable order.
         for movement in Movement:
@@ -106,8 +108,8 @@ class PersonState:
         return events
 
     def movements_in_progress(self) -> list[Movement]:
-        """Active movements in a stable display order."""
-        return [m for m in Movement if m in self.active]
+        """Active movements to display, in a stable order."""
+        return [m for m in Movement if m in self.active and is_shown(m)]
 
     def recent_sequence(self, now: float, seconds: float = 3.0) -> str | None:
         """Name of the sequence completed in the last `seconds`, if any."""

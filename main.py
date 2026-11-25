@@ -60,6 +60,7 @@ def update_sounds(
         )
         for movement, person_intensities in movement_intensities.items()
     }
+
     sounds.set_held(held_sounds, volume_scales=volume_scales)
 
     for event in events:

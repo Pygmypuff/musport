@@ -28,8 +28,14 @@ ENABLED_MOVEMENTS: dict[Movement, bool] = {
     Movement.FIST: True, #Done
 }
 
+# Movements that are detected and count toward sequences, but aren't
+# listed on screen. Anything missing counts as shown.
+SHOWN_IN_UI: dict[Movement, bool] = {
+    Movement.FINGER_EXTENSION: False,  # only a step in the cricket sequence
+}
+
 # The forest bed that loops under everything (main.py and demo_sounds.py).
-BACKGROUND_SOUND_ENABLED = True
+BACKGROUND_SOUND_ENABLED = False
 
 ENABLED_SEQUENCES: dict[MovementSequence, bool] = {
     SIDE_BEND_THEN_BEND_DOWN: False,
@@ -40,6 +46,8 @@ ENABLED_SEQUENCES: dict[MovementSequence, bool] = {
 def is_enabled(movement: Movement) -> bool:
     return ENABLED_MOVEMENTS.get(movement, True)
 
+def is_shown(movement: Movement) -> bool:
+    return SHOWN_IN_UI.get(movement, True)
 
 def sequence_enabled(sequence: MovementSequence) -> bool:
     return ENABLED_SEQUENCES.get(sequence, True)
